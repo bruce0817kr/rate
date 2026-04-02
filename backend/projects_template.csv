@@ -1,0 +1,6 @@
+name,projectType,managingDepartment,startDate,endDate,totalBudget,personnelBudget,status,managingTeam,participatingTeams
+경기북부 테크노밸리 조성사업,LOCAL_SUBSIDY,지역개발팀,2023-01-01,2025-12-31,10000000000,3000000000,IN_PROGRESS,지역개발팀,"지역개발팀,인프라팀,환경팀"
+AI 기반 스마트팜 기술개발,NATIONAL_RD,농생명팀,2022-06-01,2024-05-31,5000000000,1500000000,IN_PROGRESS,농생명팀,"농생명팀,AI빅데이터팀,환경에너지팀"
+청년창업 지원 플랫폼 구축,MIXED,창업지원팀,2023-03-01,2024-02-29,3000000000,900000000,APPROVED,창업지원팀,"창업지원팀,재무팀,인사팀"
+스마트시티 IoT 플랫폼,NATIONAL_RD,AI빅데이터팀,2023-01-01,2024-12-31,7000000000,2100000000,PLANNING,AI빅데이터팀,"AI빅데이터팀,네트워크팀,보안팀"
+그린에너지 전환 사업,LOCAL_SUBSIDY,환경에너지팀,2022-04-01,2023-03-31,2000000000,600000000,COMPLETED,환경에너지팀,"환경에너지팀,지역개발팀,재무팀"
