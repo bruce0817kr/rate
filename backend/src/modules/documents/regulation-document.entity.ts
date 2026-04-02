@@ -26,7 +26,7 @@ export class RegulationDocument {
   @Column()
   effectiveDate: Date; // When this regulation becomes effective
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   expiryDate: Date | null; // When this regulation expires (if applicable)
 
   @Column('simple-array')

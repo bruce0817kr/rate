@@ -53,7 +53,7 @@ export class Personnel {
   @Column()
   hireDate: Date;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   terminationDate: Date | null;
 
   @Column({ default: true })

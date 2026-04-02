@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { ProjectPersonnel } from './project-personnel.entity';
+import { Personnel } from '../personnel/personnel.entity';
 
 @Entity('personnel_costs')
 export class PersonnelCost {
@@ -9,6 +10,10 @@ export class PersonnelCost {
   @ManyToOne(() => ProjectPersonnel, (projectPersonnel) => projectPersonnel.personnelCosts)
   @JoinColumn({ name: 'project_personnel_id' })
   projectPersonnel: ProjectPersonnel;
+
+  @ManyToOne(() => Personnel, (personnel) => personnel.personnelCosts)
+  @JoinColumn({ name: 'personnel_id' })
+  personnel: Personnel;
 
   @Column()
   fiscalYear: number;

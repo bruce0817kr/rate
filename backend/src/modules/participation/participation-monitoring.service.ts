@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ProjectPersonnel } from './project-personnel.entity';
+import { ProjectPersonnelRole } from './project-personnel-role.enum';
 import { Personnel } from '../personnel/personnel.entity';
 import { Project } from '../projects/project.entity';
 import { ParticipationCalculationService } from './participation-calculation.service';

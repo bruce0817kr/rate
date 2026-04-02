@@ -24,11 +24,11 @@ services:
       dockerfile: Dockerfile
     container_name: rate-backend
     environment:
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      DATABASE_NAME: rate_db
-      DATABASE_USER: rate_user
-      DATABASE_PASSWORD: rate_password
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: rate_db
+      DB_USERNAME: rate_user
+      DB_PASSWORD: rate_password
       JWT_SECRET: rate-jwt-secret-key-2024
       PORT: 3000
     ports:

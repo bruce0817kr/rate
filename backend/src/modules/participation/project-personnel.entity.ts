@@ -1,7 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { Project } from '../projects/project.entity';
 import { Personnel } from '../personnel/personnel.entity';
 import { ProjectPersonnelRole } from './project-personnel-role.enum';
+import { PersonnelCost } from './personnel-cost.entity';
 
 @Entity('project_personnel')
 export class ProjectPersonnel {
@@ -16,13 +17,16 @@ export class ProjectPersonnel {
   @JoinColumn({ name: 'personnel_id' })
   personnel: Personnel;
 
+  @OneToMany(() => PersonnelCost, (pc) => pc.projectPersonnel)
+  personnelCosts: PersonnelCost[];
+
   @Column('decimal', { precision: 5, scale: 2 })
   participationRate: number; // Percentage (0-100)
 
   @Column()
   startDate: Date;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   endDate: Date | null;
 
   @Column({

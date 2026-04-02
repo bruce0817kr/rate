@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { ProjectPersonnel } from '../participation/project-personnel.entity';
 
 @Entity('projects')
 export class Project {
@@ -7,6 +8,9 @@ export class Project {
 
   @Column()
   name: string;
+
+  @OneToMany(() => ProjectPersonnel, (pp) => pp.project)
+  projectPersonnel: ProjectPersonnel[];
 
   @Column({
     type: 'enum',

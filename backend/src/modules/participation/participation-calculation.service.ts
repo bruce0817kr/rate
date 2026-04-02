@@ -34,7 +34,7 @@ export class ParticipationCalculationService {
    * @param salaryBand - String in format "MIN-MAX" (in 10,000 KRW units)
    * @returns Midpoint value as number
    */
-  private getSalaryBandMidpoint(salaryBand: string): number {
+  getSalaryBandMidpoint(salaryBand: string): number {
     const [minStr, maxStr] = salaryBand.split('-');
     const min = parseFloat(minStr);
     const max = parseFloat(maxStr);

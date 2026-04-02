@@ -4,7 +4,7 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import * as csv from 'csv-parser';
+import csv from 'csv-parser';
 import * as fs from 'fs';
 import { join } from 'path';
 
@@ -108,11 +108,11 @@ export class ProjectsController {
           }
           
           // Clean up uploaded file
-          fs.unlinkSync(uploadPath, (unlinkErr) => {
-            if (unlinkErr) {
-              console.error('Failed to delete uploaded file:', unlinkErr);
-            }
-          });
+          try {
+            fs.unlinkSync(uploadPath);
+          } catch (unlinkErr) {
+            console.error('Failed to delete uploaded file:', unlinkErr);
+          }
           
           if (errors.length > 0) {
             resolve({ 
@@ -128,11 +128,11 @@ export class ProjectsController {
         })
         .on('error', (error) => {
           // Clean up uploaded file on error
-          fs.unlinkSync(uploadPath, (unlinkErr) => {
-            if (unlinkErr) {
-              console.error('Failed to delete uploaded file on error:', unlinkErr);
-            }
-          });
+          try {
+            fs.unlinkSync(uploadPath);
+          } catch (unlinkErr) {
+            console.error('Failed to delete uploaded file on error:', unlinkErr);
+          }
           reject(new HttpException(`CSV processing failed: ${error.message}`, HttpStatus.BAD_REQUEST));
         });
     });
