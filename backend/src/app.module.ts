@@ -8,6 +8,7 @@ import { ParticipationModule } from './modules/participation/participation.modul
 import { DocumentsModule } from './modules/documents/documents.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { RegulationsModule } from './modules/regulations/regulations.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { RegulationsModule } from './modules/regulations/regulations.module';
     AuditModule,
     RegulationsModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [],
 })
 export class AppModule {}
