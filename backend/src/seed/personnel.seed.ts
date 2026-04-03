@@ -25,16 +25,22 @@ export class SeedService {
     await this.projectRepository.delete({});
 
     const teams = [
-      { name: '개발팀1', department: '개발부' },
-      { name: '개발팀2', department: '개발부' },
-      { name: '디자인팀', department: '디자인부' },
-      { name: '기획팀', department: '기획부' },
-      { name: '마케팅팀', department: '마케팅부' },
-      { name: '영업팀', department: '영업부' },
-      { name: '인사팀', department: '인사부' },
-      { name: '재무팀', department: '재무부' },
-      { name: '해외사업팀', department: '글로벌부' },
-      { name: '연구팀', department: '연구부' },
+      { name: '원장실', department: '원장실' },
+      { name: '윤리감사팀', department: '원장실' },
+      { name: '대외협력팀', department: '원장실' },
+      { name: '정책기획팀', department: '전략사업본부' },
+      { name: '디지털전환팀', department: '전략사업본부' },
+      { name: '제조로봇팀', department: '전략사업본부' },
+      { name: '경기스마트제조혁신센터', department: '전략사업본부' },
+      { name: '기술지원팀', department: '기술지원본부' },
+      { name: '기술사업화팀', department: '기술지원본부' },
+      { name: '경기지식재산센터', department: '기술지원본부' },
+      { name: '인사총무팀', department: '경영지원본부' },
+      { name: '재무회계팀', department: '경영지원본부' },
+      { name: '시설안전팀', department: '경영지원본부' },
+      { name: '혁신클러스터팀', department: '지역산업본부' },
+      { name: '미래사업팀', department: '지역산업본부' },
+      { name: '안산정보산업진흥센터', department: '지역산업본부' },
     ];
 
     const personnel: Personnel[] = [];
