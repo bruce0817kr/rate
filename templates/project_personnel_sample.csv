@@ -1,0 +1,15 @@
+employeeId,projectName,participationRate,role,startDate,endDate,calculationMethod,expenseCode,legalBasisCode,participatingTeam
+EMP001,경기북부 테크노밸리 조성사업,50,PRINCIPAL_INVESTIGATOR,2024-01-01,,MONTHLY,personnel-base,고등과학기술촉진법,지역개발팀
+EMP001,AI 기반 스마트팜 기술개발,30,CO_RESEARCHER,2024-03-01,,MONTHLY,personnel-base,고등과학기술촉진법,지역개발팀
+EMP002,AI 기반 스마트팜 기술개발,60,PRINCIPAL_INVESTIGATOR,2024-03-01,,MONTHLY,personnel-base,고등과학기술촉진법,농생명팀
+EMP002,글로벌 기술혁신 창업 생태계 구축,30,CO_RESEARCHER,2024-06-01,,MONTHLY,personnel-base,고등과학기술촉진법,농생명팀
+EMP003,글로벌 기술혁신 창업 생태계 구축,50,PRINCIPAL_INVESTIGATOR,2024-06-01,,MONTHLY,personnel-base,고등과학기술촉진법,창업지원팀
+EMP004,데이터 드라이븐 지역발전 정책 연구,70,PRINCIPAL_INVESTIGATOR,2024-01-01,,MONTHLY,personnel-base,고등과학기술촉진법,AI빅데이터팀
+EMP004,경기북부 테크노밸리 조성사업,20,PARTICIPATING_RESEARCHER,2024-01-01,,MONTHLY,personnel-base,고등과학기술촉진법,AI빅데이터팀
+EMP005,지속가능한 에너지 혁신 생태계 조성,60,PRINCIPAL_INVESTIGATOR,2023-07-01,,MONTHLY,personnel-base,고등과학기술촉진법,환경에너지팀
+EMP005,AI 기반 스마트팜 기술개발,30,PARTICIPATING_RESEARCHER,2024-03-01,,MONTHLY,personnel-base,고등과학기술촉진법,환경에너지팀
+EMP006,글로벌 기술혁신 창업 생태계 구축,40,CO_RESEARCHER,2024-06-01,,MONTHLY,personnel-base,고등과학기술촉진법,AI빅데이터팀
+EMP006,데이터 드라이븐 지역발전 정책 연구,50,CO_RESEARCHER,2024-01-01,,MONTHLY,personnel-base,고등과학기술촉진법,AI빅데이터팀
+EMP007,지속가능한 에너지 혁신 생태계 조성,40,PARTICIPATING_RESEARCHER,2023-07-01,,MONTHLY,personnel-base,고등과학기술촉진법,농생명팀
+EMP008,경기북부 테크노밸리 조성사업,30,CO_RESEARCHER,2024-01-01,,MONTHLY,personnel-base,고등과학기술촉진법,AI빅데이터팀
+EMP009,지속가능한 에너지 혁신 생태계 조성,40,PRINCIPAL_INVESTIGATOR,2023-07-01,,MONTHLY,personnel-base,고등과학기술촉진법,환경에너지팀

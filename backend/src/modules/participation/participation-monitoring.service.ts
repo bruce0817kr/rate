@@ -398,8 +398,6 @@ export class ParticipationMonitoringService {
    * @param acknowledgedBy - User ID who acknowledged the alert
    */
   async acknowledgeAlert(alertId: string, acknowledgedBy: string): Promise<void> {
-    // In a real implementation, we would store alerts in a database
-    // For now, we'll just log the acknowledgment to the audit trail
     await this.auditService.logChange(
       'ParticipationAlert',
       alertId,
@@ -411,5 +409,112 @@ export class ParticipationMonitoringService {
       },
       acknowledgedBy,
     );
+  }
+
+  /**
+   * Get all individual participation data for dashboard
+   */
+  async getIndividualParticipationData() {
+    const personnelWithParticipations = await this.personnelRepository
+      .createQueryBuilder('personnel')
+      .leftJoinAndSelect('personnel.projectPersonnel', 'projectPersonnel')
+      .leftJoinAndSelect('projectPersonnel.project', 'project')
+      .where('personnel.isActive = :isActive', { isActive: true })
+      .getMany();
+
+    return personnelWithParticipations.map(personnel => {
+      const activeParticipations = personnel.projectPersonnel
+        .filter(pp => !pp.endDate || pp.endDate > new Date());
+
+      const totalParticipationRate = activeParticipations
+        .reduce((sum, pp) => sum + pp.participationRate, 0);
+
+      const piRoleCount = activeParticipations
+        .filter(pp => pp.role === ProjectPersonnelRole.PRINCIPAL_INVESTIGATOR)
+        .length;
+
+      let status: 'OK' | 'WARNING' | 'CRITICAL' = 'OK';
+      if (totalParticipationRate > 100 || piRoleCount > 3) {
+        status = 'CRITICAL';
+      } else if (totalParticipationRate >= 90 || piRoleCount >= 3) {
+        status = 'WARNING';
+      }
+
+      return {
+        personnelId: personnel.id,
+        employeeId: personnel.employeeId,
+        name: personnel.name,
+        team: personnel.team,
+        position: personnel.position,
+        totalParticipationRate,
+        piRoleCount,
+        totalRoleCount: activeParticipations.length,
+        status,
+        activeParticipations: activeParticipations.map(pp => ({
+          projectId: pp.project.id,
+          projectName: pp.project.name,
+          participationRate: pp.participationRate,
+          role: pp.role,
+          startDate: pp.startDate,
+          endDate: pp.endDate,
+        })),
+      };
+    });
+  }
+
+  /**
+   * Get individual participation data by personnel ID
+   */
+  async getIndividualParticipationById(id: string) {
+    const personnel = await this.personnelRepository
+      .createQueryBuilder('personnel')
+      .leftJoinAndSelect('personnel.projectPersonnel', 'projectPersonnel')
+      .leftJoinAndSelect('projectPersonnel.project', 'project')
+      .where('personnel.id = :id', { id })
+      .getOne();
+
+    if (!personnel) {
+      return null;
+    }
+
+    const activeParticipations = personnel.projectPersonnel
+      .filter(pp => !pp.endDate || pp.endDate > new Date());
+
+    const totalParticipationRate = activeParticipations
+      .reduce((sum, pp) => sum + pp.participationRate, 0);
+
+    const piRoleCount = activeParticipations
+      .filter(pp => pp.role === ProjectPersonnelRole.PRINCIPAL_INVESTIGATOR)
+      .length;
+
+    let status: 'OK' | 'WARNING' | 'CRITICAL' = 'OK';
+    if (totalParticipationRate > 100 || piRoleCount > 3) {
+      status = 'CRITICAL';
+    } else if (totalParticipationRate >= 90 || piRoleCount >= 3) {
+      status = 'WARNING';
+    }
+
+    return {
+      personnelId: personnel.id,
+      employeeId: personnel.employeeId,
+      name: personnel.name,
+      team: personnel.team,
+      position: personnel.position,
+      salaryBand: personnel.salaryBand,
+      highestEducation: personnel.highestEducation,
+      educationYear: personnel.educationYear,
+      totalParticipationRate,
+      piRoleCount,
+      totalRoleCount: activeParticipations.length,
+      status,
+      activeParticipations: activeParticipations.map(pp => ({
+        projectId: pp.project.id,
+        projectName: pp.project.name,
+        participationRate: pp.participationRate,
+        role: pp.role,
+        startDate: pp.startDate,
+        endDate: pp.endDate,
+      })),
+    };
   }
 }

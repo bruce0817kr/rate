@@ -8,6 +8,8 @@ import { ParticipationModule } from './modules/participation/participation.modul
 import { DocumentsModule } from './modules/documents/documents.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { RegulationsModule } from './modules/regulations/regulations.module';
+import { UsersModule } from './modules/users/users.module';
+import { UploadModule } from './modules/upload/upload.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -30,12 +32,14 @@ import { HealthController } from './health.controller';
       }),
     }),
     AuthModule,
+    UsersModule,
     PersonnelModule,
     ProjectModule,
     ParticipationModule,
     DocumentsModule,
     AuditModule,
     RegulationsModule,
+    UploadModule,
   ],
   controllers: [HealthController],
   providers: [],

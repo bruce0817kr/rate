@@ -23,8 +23,28 @@ interface TeamUtilizationResponse {
   status: 'OK' | 'WARNING' | 'CRITICAL';
 }
 
+interface IndividualParticipationResponse {
+  personnelId: string;
+  employeeId: string;
+  name: string;
+  team: string;
+  position: string;
+  totalParticipationRate: number;
+  piRoleCount: number;
+  totalRoleCount: number;
+  status: 'OK' | 'WARNING' | 'CRITICAL';
+  activeParticipations: {
+    projectId: string;
+    projectName: string;
+    participationRate: number;
+    role: string;
+    startDate: Date;
+    endDate: Date | null;
+  }[];
+}
+
 @Controller('participation-monitoring')
-@UseGuards(JwtAuthGuard)
+
 export class ParticipationMonitoringController {
   constructor(private readonly participationMonitoringService: ParticipationMonitoringService) {}
 
@@ -37,6 +57,16 @@ export class ParticipationMonitoringController {
   @Get('team-utilization')
   async getTeamUtilization(): Promise<TeamUtilizationResponse[]> {
     return await this.participationMonitoringService.getTeamUtilizationData();
+  }
+
+  @Get('individual')
+  async getIndividualParticipations(): Promise<IndividualParticipationResponse[]> {
+    return await this.participationMonitoringService.getIndividualParticipationData();
+  }
+
+  @Get('individual/:id')
+  async getIndividualParticipation(@Param('id') id: string): Promise<IndividualParticipationResponse | null> {
+    return await this.participationMonitoringService.getIndividualParticipationById(id);
   }
 
   @Get('validate-individual')

@@ -65,7 +65,6 @@ export class ProjectPersonnelService {
   }
 
   async createProjectPersonnel(createProjectPersonnelDto: CreateProjectPersonnelDto): Promise<ProjectPersonnel> {
-    // Validate that the project exists
     const project = await this.projectRepository.findOne({
       where: { id: createProjectPersonnelDto.projectId },
     });
@@ -73,7 +72,6 @@ export class ProjectPersonnelService {
       throw new NotFoundException(`Project with ID ${createProjectPersonnelDto.projectId} not found`);
     }
 
-    // Validate that the personnel exists
     const personnel = await this.personnelRepository.findOne({
       where: { id: createProjectPersonnelDto.personnelId },
     });
@@ -81,11 +79,9 @@ export class ProjectPersonnelService {
       throw new NotFoundException(`Personnel with ID ${createProjectPersonnelDto.personnelId} not found`);
     }
 
-    // Validate role limits (max 3 PI, max 5 total)
     const roleToAssign = createProjectPersonnelDto.role || ProjectPersonnelRole.PARTICIPATING_RESEARCHER;
     await this.validateRoleLimits(createProjectPersonnelDto.personnelId, roleToAssign);
 
-    // Check if this specific project-personnel combination already exists
     const existing = await this.projectPersonnelRepository.findOne({
       where: {
         project: { id: createProjectPersonnelDto.projectId },
@@ -98,12 +94,18 @@ export class ProjectPersonnelService {
       );
     }
 
-    // Validate participation rate is within bounds (0-100)
     this.participationCalculationService.validateParticipationRate(
       createProjectPersonnelDto.participationRate
     );
 
-    // Create new project-personnel entity
+    const currentTotalRate = await this.getTotalParticipationRate(createProjectPersonnelDto.personnelId);
+    const newTotalRate = currentTotalRate + createProjectPersonnelDto.participationRate;
+    if (newTotalRate > 100) {
+      throw new BadRequestException(
+        `총 참여율이 ${newTotalRate}%가 됩니다. 한 사람의 참여율 합계는 100%를 초과할 수 없습니다. (현재 참여율: ${currentTotalRate}%, 추가하려는 참여율: ${createProjectPersonnelDto.participationRate}%)`
+      );
+    }
+
     const projectPersonnel = this.projectPersonnelRepository.create({
       ...createProjectPersonnelDto,
       project,
@@ -112,7 +114,6 @@ export class ProjectPersonnelService {
 
     const savedProjectPersonnel = await this.projectPersonnelRepository.save(projectPersonnel);
 
-    // Log to audit trail
     await this.auditService.logChange(
       'ProjectPersonnel',
       savedProjectPersonnel.id,
@@ -148,6 +149,15 @@ export class ProjectPersonnelService {
     
     if (updateData.participationRate !== undefined) {
       this.participationCalculationService.validateParticipationRate(updateData.participationRate);
+
+      const currentTotalRate = await this.getTotalParticipationRate(projectPersonnel.personnel.id);
+      const existingRate = projectPersonnel.participationRate;
+      const newTotalRate = currentTotalRate - existingRate + updateData.participationRate;
+      if (newTotalRate > 100) {
+        throw new BadRequestException(
+          `총 참여율이 ${newTotalRate}%가 됩니다. 한 사람의 참여율 합계는 100%를 초과할 수 없습니다. (현재 총 참여율: ${currentTotalRate}%, 기존 참여율: ${existingRate}%, 변경 후 참여율: ${updateData.participationRate}%)`
+        );
+      }
     }
 
     if (updateData.role !== undefined) {
@@ -160,12 +170,10 @@ export class ProjectPersonnelService {
 
     Object.assign(projectPersonnel, updateData);
     
-    // Increment version for optimistic locking
     projectPersonnel.version += 1;
     
     const updated = await this.projectPersonnelRepository.save(projectPersonnel);
     
-    // Log to audit trail
     await this.auditService.logChange(
       'ProjectPersonnel',
       id,
@@ -183,9 +191,8 @@ export class ProjectPersonnelService {
   async remove(id: string): Promise<void> {
     const projectPersonnel = await this.findOne(id);
     
-    const result = await this.projectPersonnelRepository.remove(projectPersonnel);
+    await this.projectPersonnelRepository.remove(projectPersonnel);
     
-    // Log to audit trail
     await this.auditService.logChange(
       'ProjectPersonnel',
       id,
@@ -213,13 +220,6 @@ export class ProjectPersonnelService {
     });
   }
 
-  /**
-   * Calculate the personnel cost for a specific project-personnel assignment
-   * @param projectPersonnelId - The ID of the project-personnel assignment
-   * @param fiscalYear - The fiscal year to calculate for
-   * @param fiscalMonth - The fiscal month to calculate for (1-12)
-   * @returns Calculated personnel cost
-   */
   async calculatePersonnelCost(
     projectPersonnelId: string,
     fiscalYear: number,
@@ -227,14 +227,12 @@ export class ProjectPersonnelService {
   ): Promise<{ amount: number; details: Record<string, any> }> {
     const projectPersonnel = await this.findOne(projectPersonnelId);
     
-    // Calculate the monthly cost
     const monthlyCost = this.participationCalculationService.calculateMonthlyCost(
       projectPersonnel.personnel,
       projectPersonnel,
-      1, // Calculate for 1 month
+      1,
     );
     
-    // Create personnel cost record
     const personnelCost = {
       projectPersonnelId,
       fiscalYear,
@@ -245,8 +243,8 @@ export class ProjectPersonnelService {
       ),
       appliedParticipationRate: projectPersonnel.participationRate,
       calculatedAmount: monthlyCost,
-      expenseItem: 'base-salary', // This would come from the expenseCode in a real implementation
-      insuranceCoverage: 'EMPLOYER_PART', // Simplified
+      expenseItem: 'base-salary',
+      insuranceCoverage: 'EMPLOYER_PART',
       documentStatus: 'NOT_SUBMITTED',
     };
     
@@ -256,15 +254,9 @@ export class ProjectPersonnelService {
     };
   }
 
-  /**
-   * Get total participation rate for a specific personnel across all active projects
-   * @param personnelId - The ID of the personnel
-   * @returns Total participation rate percentage
-   */
   async getTotalParticipationRate(personnelId: string): Promise<number> {
     const projectPersonnels = await this.findByPersonnelId(personnelId);
     
-    // Sum only active participations (those without end date or with future end date)
     const totalRate = projectPersonnels
       .filter(pp => !pp.endDate || pp.endDate > new Date())
       .reduce((sum, pp) => sum + pp.participationRate, 0);

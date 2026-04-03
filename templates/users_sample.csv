@@ -1,0 +1,6 @@
+username,password,name,role
+admin,admin123,관리자,ADMIN
+hr,hr123,홍길동,HR_FINANCE
+finance,finance123,김재무,GENERAL
+user1,user123,이철수,GENERAL
+user2,user123,박영희,GENERAL
