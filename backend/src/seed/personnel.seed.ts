@@ -177,7 +177,7 @@ export class SeedService {
            expenseCode: 'personnel-base',
            legalBasisCode: 'LEGAL_001',
            participatingTeam: member.team,
-           role: ProjectPersonnelRole.CO_RESEARCHER, // 구성원은 공동연구원
+           role: ProjectPersonnelRole.PARTICIPATING_RESEARCHER, // 구성원은 참여연구자
          });
          projectPersonnel.push(pp);
        }
