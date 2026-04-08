@@ -6,10 +6,11 @@ import { Personnel } from '../personnel/personnel.entity';
 import { Project } from '../projects/project.entity';
 import { ProjectPersonnel } from '../participation/project-personnel.entity';
 import { User } from '../users/user.entity';
+import { Team } from '../teams/team.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Personnel, Project, ProjectPersonnel, User]),
+    TypeOrmModule.forFeature([Personnel, Project, ProjectPersonnel, User, Team]),
   ],
   controllers: [UploadController],
   providers: [UploadService],

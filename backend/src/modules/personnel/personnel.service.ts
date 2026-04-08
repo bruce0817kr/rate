@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindManyOptions } from 'typeorm';
 import { Personnel } from './personnel.entity';
 import { CreatePersonnelDto } from './dto/create-personnel.dto';
-import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class PersonnelService {
@@ -25,6 +24,11 @@ export class PersonnelService {
     // Create new personnel entity
     const personnel = this.personnelRepository.create({
       ...createPersonnelDto,
+      gender: createPersonnelDto.gender || 'UNSPECIFIED',
+      highestEducation: createPersonnelDto.highestEducation || 'UNKNOWN',
+      educationYear: createPersonnelDto.educationYear || new Date().getFullYear(),
+      nationalResearcherNumber: createPersonnelDto.nationalResearcherNumber || createPersonnelDto.employeeId,
+      birthDate: createPersonnelDto.birthDate ? new Date(createPersonnelDto.birthDate) : new Date('1970-01-01'),
       // SSN will be encrypted in a real implementation
       // For now, we'll store as-is (in production, use proper encryption)
       ssn: createPersonnelDto.ssn,
@@ -91,6 +95,18 @@ export class PersonnelService {
     const personnel = await this.findPersonnelById(id);
     personnel.isActive = false;
     return await this.personnelRepository.save(personnel);
+  }
+
+  async purgeMockPersonnel(): Promise<{ deletedCount: number }> {
+    const deleteResult = await this.personnelRepository
+      .createQueryBuilder()
+      .delete()
+      .from(Personnel)
+      .where("name ~ :pattern", { pattern: '(팀원|구성원)[0-9]+$' })
+      .orWhere("employeeId ~ :employeePattern", { employeePattern: '^EMP[0-9]{4,}$' })
+      .execute();
+
+    return { deletedCount: deleteResult.affected || 0 };
   }
 
   // Helper method to encrypt SSN (placeholder - would use proper encryption in production)

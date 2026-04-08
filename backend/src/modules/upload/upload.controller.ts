@@ -7,7 +7,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { UploadService, PersonnelCsvRow, ProjectCsvRow, ProjectPersonnelCsvRow, UserCsvRow } from './upload.service';
+import { UploadService, PersonnelCsvRow, ProjectCsvRow, ProjectPersonnelCsvRow, UserCsvRow, TeamCsvRow } from './upload.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -86,6 +86,22 @@ export class UploadController {
     const result = await this.uploadService.uploadUsers(data as UserCsvRow[]);
     return {
       message: `Uploaded ${result.success} users, ${result.failed} failed`,
+      ...result,
+    };
+  }
+
+  @Post('teams')
+  @Roles(UserRole.ADMIN, UserRole.HR_FINANCE)
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadTeams(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    const data = this.parseExcel(file.buffer);
+    const result = await this.uploadService.uploadTeams(data as TeamCsvRow[]);
+    return {
+      message: `Uploaded ${result.success} teams, ${result.failed} failed`,
       ...result,
     };
   }

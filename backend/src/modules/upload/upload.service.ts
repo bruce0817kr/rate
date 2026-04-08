@@ -5,6 +5,7 @@ import { Personnel } from '../personnel/personnel.entity';
 import { Project } from '../projects/project.entity';
 import { ProjectPersonnel } from '../participation/project-personnel.entity';
 import { User, UserRole } from '../users/user.entity';
+import { Team } from '../teams/team.entity';
 import * as bcrypt from 'bcrypt';
 
 export interface UploadResult {
@@ -62,6 +63,17 @@ export interface UserCsvRow {
   role: string;
 }
 
+export interface TeamCsvRow {
+  name: string;
+  department?: string;
+  description?: string;
+  managerName?: string;
+  managerEmail?: string;
+  managerPhone?: string;
+  plannedHeadcount?: string;
+  isActive?: string;
+}
+
 @Injectable()
 export class UploadService {
   constructor(
@@ -73,6 +85,8 @@ export class UploadService {
     private projectPersonnelRepository: Repository<ProjectPersonnel>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Team)
+    private teamRepository: Repository<Team>,
   ) {}
 
   async uploadPersonnel(data: PersonnelCsvRow[]): Promise<UploadResult> {
@@ -291,6 +305,50 @@ export class UploadService {
           });
           await this.userRepository.save(user);
         }
+        result.success++;
+      } catch (error) {
+        result.failed++;
+        result.errors.push(`Row ${i + 2}: ${error.message}`);
+      }
+    }
+
+    return result;
+  }
+
+  async uploadTeams(data: TeamCsvRow[]): Promise<UploadResult> {
+    const result: UploadResult = { success: 0, failed: 0, errors: [] };
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      try {
+        if (!row.name?.trim()) {
+          throw new BadRequestException('name is required');
+        }
+
+        const name = row.name.trim();
+        const existing = await this.teamRepository.findOne({
+          where: { name },
+        });
+
+        const payload = {
+          name,
+          department: row.department?.trim() || null,
+          description: row.description?.trim() || null,
+          managerName: row.managerName?.trim() || null,
+          managerEmail: row.managerEmail?.trim() || null,
+          managerPhone: row.managerPhone?.trim() || null,
+          plannedHeadcount: row.plannedHeadcount ? parseInt(row.plannedHeadcount, 10) || null : null,
+          isActive: row.isActive ? row.isActive.toLowerCase() !== 'false' : true,
+        };
+
+        if (existing) {
+          Object.assign(existing, payload);
+          await this.teamRepository.save(existing);
+        } else {
+          const team = this.teamRepository.create(payload);
+          await this.teamRepository.save(team);
+        }
+
         result.success++;
       } catch (error) {
         result.failed++;

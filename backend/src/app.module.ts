@@ -10,6 +10,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { RegulationsModule } from './modules/regulations/regulations.module';
 import { UsersModule } from './modules/users/users.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { TeamsModule } from './modules/teams/teams.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -39,6 +40,7 @@ import { HealthController } from './health.controller';
     DocumentsModule,
     AuditModule,
     RegulationsModule,
+    TeamsModule,
     UploadModule,
   ],
   controllers: [HealthController],

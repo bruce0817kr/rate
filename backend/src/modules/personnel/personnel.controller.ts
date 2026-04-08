@@ -2,6 +2,9 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, 
 import { PersonnelService } from './personnel.service';
 import { CreatePersonnelDto } from './dto/create-personnel.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { UserRole } from '../users/user.entity';
 import { PersonnelEmploymentType } from './personnel.enum';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -53,6 +56,13 @@ export class PersonnelController {
   @Patch(':id/deactivate')
   deactivate(@Param('id') id: string) {
     return this.personnelService.deactivatePersonnel(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Post('purge-mock')
+  @Roles(UserRole.ADMIN, UserRole.HR_FINANCE)
+  purgeMockPersonnel() {
+    return this.personnelService.purgeMockPersonnel();
   }
 
   @UseGuards(JwtAuthGuard)
