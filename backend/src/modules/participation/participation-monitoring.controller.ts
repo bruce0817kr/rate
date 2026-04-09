@@ -34,6 +34,7 @@ interface IndividualParticipationResponse {
   totalRoleCount: number;
   status: 'OK' | 'WARNING' | 'CRITICAL';
   activeParticipations: {
+    projectPersonnelId: string;
     projectId: string;
     projectName: string;
     participationRate: number;

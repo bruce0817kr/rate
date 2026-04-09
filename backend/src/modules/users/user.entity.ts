@@ -2,6 +2,8 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 
 export enum UserRole {
   ADMIN = 'ADMIN',
+  STRATEGY_PLANNING = 'STRATEGY_PLANNING',
+  HR_GENERAL_AFFAIRS = 'HR_GENERAL_AFFAIRS',
   HR_FINANCE = 'HR_FINANCE',
   GENERAL = 'GENERAL',
 }

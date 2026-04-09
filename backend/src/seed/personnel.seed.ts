@@ -19,10 +19,7 @@ export class SeedService {
   ) {}
 
   async seed() {
-    // Clear existing data (optional, be careful in production)
-    await this.projectPersonnelRepository.delete({});
-    await this.personnelRepository.delete({});
-    await this.projectRepository.delete({});
+    // Skip clearing - just insert new data
 
     const teams = [
       { name: '원장실', department: '원장실' },
@@ -50,15 +47,19 @@ export class SeedService {
     let employeeId = 1;
 
     for (const [teamIndex, team] of teams.entries()) {
-      // Create team leader
       const leader = this.personnelRepository.create({
         employeeId: `EMP${String(employeeId).padStart(4, '0')}`,
         name: `${team.name} 팀장`,
+        gender: 'M',
+        highestEducation: '박사',
+        educationYear: 2015,
+        nationalResearcherNumber: `NRN${String(employeeId).padStart(8, '0')}`,
+        birthDate: new Date(1980, 0, 1),
         ssn: `${String(employeeId).padStart(6, '0')}-${String(employeeId).padStart(2, '0')}-${String(employeeId).padStart(4, '0')}`,
         department: team.department,
         team: team.name,
         position: '팀장',
-        salaryBand: '5000-6000', // 팀장 급여대역
+        salaryBand: '5000-6000',
         employmentType: PersonnelEmploymentType.FULL_TIME,
         hireDate: new Date(2020, 0, 1),
         isActive: true,
@@ -69,17 +70,21 @@ export class SeedService {
       });
       personnel.push(leader);
 
-      // Create 4 team members
       for (let i = 0; i < 4; i++) {
         employeeId++;
         const member = this.personnelRepository.create({
           employeeId: `EMP${String(employeeId).padStart(4, '0')}`,
           name: `${team.name} 구성원${i + 1}`,
+          gender: i % 2 === 0 ? 'M' : 'F',
+          highestEducation: i % 2 === 0 ? '석사' : '학사',
+          educationYear: 2018 + i,
+          nationalResearcherNumber: `NRN${String(employeeId).padStart(8, '0')}`,
+          birthDate: new Date(1985 + i, 0, 1),
           ssn: `${String(employeeId).padStart(6, '0')}-${String(employeeId).padStart(2, '0')}-${String(employeeId).padStart(4, '0')}`,
           department: team.department,
           team: team.name,
           position: i % 2 === 0 ? '선임' : '주임',
-          salaryBand: '3000-4000', // 일반 직원 급여대역
+          salaryBand: '3000-4000',
           employmentType: PersonnelEmploymentType.FULL_TIME,
           hireDate: new Date(2021, 0, 1),
           isActive: true,
@@ -91,13 +96,12 @@ export class SeedService {
         personnel.push(member);
       }
 
-      employeeId++; // increment for next team leader
+      employeeId++;
     }
 
     // Save all personnel
     const savedPersonnel = await this.personnelRepository.save(personnel);
 
-    // Create sample projects
     const projectData = [
       {
         name: 'AI 기반 스마트 팜 기술 개발',
@@ -110,6 +114,8 @@ export class SeedService {
         status: 'IN_PROGRESS' as const,
         managingTeam: '연구팀',
         participatingTeams: ['연구팀', '개발팀1', '디자인팀'],
+        legalBasis: { law: '국가연구개발사업법', notification: '2023-01' },
+        internalRules: { gtpRegulation: 'GTP-2023-001' },
       },
       {
         name: '경기북부 테크노밸리 조성 사업',
@@ -122,6 +128,8 @@ export class SeedService {
         status: 'IN_PROGRESS' as const,
         managingTeam: '개발팀1',
         participatingTeams: ['개발팀1', '개발팀2', '디자인팀', '기획팀'],
+        legalBasis: { law: '지방보조금법', notification: '2022-06' },
+        internalRules: { gtpRegulation: 'GTP-2022-015' },
       },
       {
         name: '청년 창업 지원 플랫폼 구축',
@@ -134,6 +142,8 @@ export class SeedService {
         status: 'APPROVED' as const,
         managingTeam: '기획팀',
         participatingTeams: ['기획팀', '마케팅팀', '인사팀', '재무팀'],
+        legalBasis: { law: '창업지원법', notification: '2023-03' },
+        internalRules: { gtpRegulation: 'GTP-2023-008' },
       },
     ];
 

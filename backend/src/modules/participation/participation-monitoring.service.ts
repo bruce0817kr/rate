@@ -451,6 +451,7 @@ export class ParticipationMonitoringService {
         totalRoleCount: activeParticipations.length,
         status,
         activeParticipations: activeParticipations.map(pp => ({
+          projectPersonnelId: pp.id,
           projectId: pp.project.id,
           projectName: pp.project.name,
           participationRate: pp.participationRate,
@@ -508,6 +509,7 @@ export class ParticipationMonitoringService {
       totalRoleCount: activeParticipations.length,
       status,
       activeParticipations: activeParticipations.map(pp => ({
+        projectPersonnelId: pp.id,
         projectId: pp.project.id,
         projectName: pp.project.name,
         participationRate: pp.participationRate,

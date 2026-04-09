@@ -10,6 +10,25 @@ export class CreatePersonnelDto {
   @IsNotEmpty()
   name: string;
 
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @IsOptional()
+  @IsString()
+  highestEducation?: string;
+
+  @IsOptional()
+  educationYear?: number;
+
+  @IsOptional()
+  @IsString()
+  nationalResearcherNumber?: string;
+
+  @IsOptional()
+  @IsDateString()
+  birthDate?: string;
+
   @IsString()
   @IsNotEmpty()
   ssn: string; // Will be encrypted before saving

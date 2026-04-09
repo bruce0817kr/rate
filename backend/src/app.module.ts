@@ -11,6 +11,7 @@ import { RegulationsModule } from './modules/regulations/regulations.module';
 import { UsersModule } from './modules/users/users.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { TeamsModule } from './modules/teams/teams.module';
+import { SalaryBandsModule } from './modules/salary-bands/salary-bands.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -41,6 +42,7 @@ import { HealthController } from './health.controller';
     AuditModule,
     RegulationsModule,
     TeamsModule,
+    SalaryBandsModule,
     UploadModule,
   ],
   controllers: [HealthController],

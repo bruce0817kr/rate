@@ -13,25 +13,46 @@ export class TeamsController {
   constructor(private readonly teamsService: TeamsService) {}
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.HR_FINANCE, UserRole.GENERAL)
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.STRATEGY_PLANNING,
+    UserRole.HR_GENERAL_AFFAIRS,
+    UserRole.HR_FINANCE,
+    UserRole.GENERAL,
+  )
   async findAll() {
     return this.teamsService.findAll();
   }
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.HR_FINANCE)
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.STRATEGY_PLANNING,
+    UserRole.HR_GENERAL_AFFAIRS,
+    UserRole.HR_FINANCE,
+  )
   async create(@Body() dto: CreateTeamDto) {
     return this.teamsService.create(dto);
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.HR_FINANCE)
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.STRATEGY_PLANNING,
+    UserRole.HR_GENERAL_AFFAIRS,
+    UserRole.HR_FINANCE,
+  )
   async update(@Param('id') id: string, @Body() dto: UpdateTeamDto) {
     return this.teamsService.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.HR_FINANCE)
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.STRATEGY_PLANNING,
+    UserRole.HR_GENERAL_AFFAIRS,
+    UserRole.HR_FINANCE,
+  )
   async remove(@Param('id') id: string) {
     await this.teamsService.remove(id);
     return { message: 'deleted' };

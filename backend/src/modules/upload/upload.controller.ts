@@ -27,7 +27,7 @@ export class UploadController {
   }
 
   @Post('personnel')
-  @Roles(UserRole.ADMIN, UserRole.HR_FINANCE)
+  @Roles(UserRole.ADMIN, UserRole.STRATEGY_PLANNING, UserRole.HR_GENERAL_AFFAIRS)
   @UseInterceptors(FileInterceptor('file'))
   async uploadPersonnel(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
@@ -43,7 +43,7 @@ export class UploadController {
   }
 
   @Post('projects')
-  @Roles(UserRole.ADMIN, UserRole.HR_FINANCE)
+  @Roles(UserRole.ADMIN, UserRole.STRATEGY_PLANNING, UserRole.HR_GENERAL_AFFAIRS)
   @UseInterceptors(FileInterceptor('file'))
   async uploadProjects(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
@@ -59,7 +59,7 @@ export class UploadController {
   }
 
   @Post('project-personnel')
-  @Roles(UserRole.ADMIN, UserRole.HR_FINANCE)
+  @Roles(UserRole.ADMIN, UserRole.STRATEGY_PLANNING, UserRole.HR_GENERAL_AFFAIRS)
   @UseInterceptors(FileInterceptor('file'))
   async uploadProjectPersonnel(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
@@ -91,7 +91,7 @@ export class UploadController {
   }
 
   @Post('teams')
-  @Roles(UserRole.ADMIN, UserRole.HR_FINANCE)
+  @Roles(UserRole.ADMIN, UserRole.STRATEGY_PLANNING, UserRole.HR_GENERAL_AFFAIRS)
   @UseInterceptors(FileInterceptor('file'))
   async uploadTeams(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
