@@ -98,14 +98,6 @@ export class ProjectPersonnelService {
       createProjectPersonnelDto.participationRate
     );
 
-    const currentTotalRate = await this.getTotalParticipationRate(createProjectPersonnelDto.personnelId);
-    const newTotalRate = currentTotalRate + createProjectPersonnelDto.participationRate;
-    if (newTotalRate > 100) {
-      throw new BadRequestException(
-        `총 참여율이 ${newTotalRate}%가 됩니다. 한 사람의 참여율 합계는 100%를 초과할 수 없습니다. (현재 참여율: ${currentTotalRate}%, 추가하려는 참여율: ${createProjectPersonnelDto.participationRate}%)`
-      );
-    }
-
     const projectPersonnel = this.projectPersonnelRepository.create({
       ...createProjectPersonnelDto,
       project,
@@ -156,14 +148,7 @@ export class ProjectPersonnelService {
     if (updateData.participationRate !== undefined) {
       this.participationCalculationService.validateParticipationRate(updateData.participationRate);
 
-      const currentTotalRate = await this.getTotalParticipationRate(projectPersonnel.personnel.id);
-      const existingRate = projectPersonnel.participationRate;
-      const newTotalRate = currentTotalRate - existingRate + updateData.participationRate;
-      if (newTotalRate > 100) {
-        throw new BadRequestException(
-          `총 참여율이 ${newTotalRate}%가 됩니다. 한 사람의 참여율 합계는 100%를 초과할 수 없습니다. (현재 총 참여율: ${currentTotalRate}%, 기존 참여율: ${existingRate}%, 변경 후 참여율: ${updateData.participationRate}%)`
-        );
-      }
+      // 개인 총 참여율 100% 초과 허용 정책: 개별 참여율 유효성(0~100)만 검증
     }
 
     if (updateData.role !== undefined) {
