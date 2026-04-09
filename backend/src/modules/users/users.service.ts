@@ -1,19 +1,16 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User, UserRole } from './user.entity';
 import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
-import { Personnel } from '../personnel/personnel.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
-    @InjectRepository(Personnel)
-    private personnelRepository: Repository<Personnel>,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -37,7 +34,7 @@ export class UsersService {
     return this.usersRepository.save(user);
   }
 
-  async registerFromPersonnel(registerUserDto: RegisterUserDto): Promise<User> {
+  async registerWithCompanyEmail(registerUserDto: RegisterUserDto): Promise<User> {
     const existingUser = await this.usersRepository.findOne({
       where: { username: registerUserDto.username },
     });
@@ -46,28 +43,28 @@ export class UsersService {
       throw new ConflictException('Username already exists');
     }
 
-    const personnel = await this.personnelRepository.findOne({
-      where: {
-        employeeId: registerUserDto.employeeId,
-        isActive: true,
-      },
-    });
-
-    if (!personnel) {
-      throw new NotFoundException('No active personnel record matched the signup request');
+    const username = registerUserDto.username.trim().toLowerCase();
+    const allowedDomain = process.env.COMPANY_EMAIL_DOMAIN || 'gtp.or.kr';
+    if (!username.endsWith(`@${allowedDomain}`)) {
+      throw new BadRequestException(`Company email only. Allowed domain: @${allowedDomain}`);
     }
 
     const passwordHash = await bcrypt.hash(registerUserDto.password, 10);
+    const localPart = username.split('@')[0] || 'user';
 
     const user = this.usersRepository.create({
-      username: registerUserDto.username,
+      username,
       passwordHash,
-      name: personnel.name,
+      name: localPart,
       role: UserRole.GENERAL,
       isActive: true,
     });
 
     return this.usersRepository.save(user);
+  }
+
+  async registerFromPersonnel(registerUserDto: RegisterUserDto): Promise<User> {
+    return this.registerWithCompanyEmail(registerUserDto);
   }
 
   async findAll(): Promise<User[]> {
