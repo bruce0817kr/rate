@@ -67,5 +67,5 @@ Phases execute in numeric order: 1 -> 2 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. 대시보드 한글 및 지표 복구 | 2/2 | Complete | 2026-04-09 |
-| 2. 참여율/인건비 서식 정리 | 0/2 | Not started | - |
+| 2. 참여율/인건비 서식 정리 | 1/2 | In progress | - |
 | 3. 검증 및 반영 | 0/2 | Not started | - |
