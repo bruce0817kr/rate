@@ -4,12 +4,16 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User, UserRole } from './user.entity';
 import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto';
+import { RegisterUserDto } from './dto/register-user.dto';
+import { Personnel } from '../personnel/personnel.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(Personnel)
+    private personnelRepository: Repository<Personnel>,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -28,6 +32,39 @@ export class UsersService {
       passwordHash,
       name: createUserDto.name,
       role: createUserDto.role as UserRole,
+    });
+
+    return this.usersRepository.save(user);
+  }
+
+  async registerFromPersonnel(registerUserDto: RegisterUserDto): Promise<User> {
+    const existingUser = await this.usersRepository.findOne({
+      where: { username: registerUserDto.username },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Username already exists');
+    }
+
+    const personnel = await this.personnelRepository.findOne({
+      where: {
+        employeeId: registerUserDto.employeeId,
+        isActive: true,
+      },
+    });
+
+    if (!personnel) {
+      throw new NotFoundException('No active personnel record matched the signup request');
+    }
+
+    const passwordHash = await bcrypt.hash(registerUserDto.password, 10);
+
+    const user = this.usersRepository.create({
+      username: registerUserDto.username,
+      passwordHash,
+      name: personnel.name,
+      role: UserRole.GENERAL,
+      isActive: true,
     });
 
     return this.usersRepository.save(user);
@@ -71,6 +108,12 @@ export class UsersService {
       user.isActive = updateUserDto.isActive;
     }
 
+    return this.usersRepository.save(user);
+  }
+
+  async updateMyProfile(id: string, name: string): Promise<User> {
+    const user = await this.findOne(id);
+    user.name = name;
     return this.usersRepository.save(user);
   }
 

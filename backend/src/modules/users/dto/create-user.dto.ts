@@ -25,3 +25,9 @@ export class UpdateUserDto {
 
   isActive?: boolean;
 }
+
+export class UpdateMyProfileDto {
+  @IsString()
+  @MinLength(1)
+  name: string;
+}

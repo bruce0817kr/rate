@@ -10,7 +10,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto';
+import { CreateUserDto, UpdateMyProfileDto, UpdateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -31,6 +31,16 @@ export class UsersController {
   @Roles(UserRole.ADMIN, UserRole.HR_FINANCE)
   findAll() {
     return this.usersService.findAll();
+  }
+
+  @Get('me')
+  getMe(@Request() req: any) {
+    return this.usersService.findOne(req.user.userId);
+  }
+
+  @Patch('me')
+  updateMe(@Request() req: any, @Body() updateMyProfileDto: UpdateMyProfileDto) {
+    return this.usersService.updateMyProfile(req.user.userId, updateMyProfileDto.name);
   }
 
   @Get(':id')
