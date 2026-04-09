@@ -1,5 +1,4 @@
 import { IsString, IsNotEmpty, IsEnum, IsDateString, IsOptional, IsArray, IsNumber, Min } from 'class-validator';
-import { Type } from 'class-transformer';
 
 export class CreateProjectDto {
   @IsString()
@@ -14,11 +13,9 @@ export class CreateProjectDto {
   managingDepartment: string;
 
   @IsDateString()
-  @Type(() => Date)
   startDate: string;
 
   @IsDateString()
-  @Type(() => Date)
   endDate: string;
 
   @IsNumber()
@@ -28,6 +25,11 @@ export class CreateProjectDto {
   @IsNumber()
   @Min(0)
   personnelBudget: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  personnelCostFinalTotal?: number;
 
   @IsOptional()
   @IsEnum(['PLANNING', 'APPROVED', 'IN_PROGRESS', 'COMPLETED', 'AUDITING'])

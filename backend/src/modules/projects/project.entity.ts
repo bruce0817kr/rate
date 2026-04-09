@@ -33,6 +33,9 @@ export class Project {
   @Column('decimal', { precision: 15, scale: 2 })
   personnelBudget: number;
 
+  @Column('decimal', { precision: 15, scale: 2, nullable: true })
+  personnelCostFinalTotal: number | null; // Manual final personnel total adjustment
+
   @Column({
     type: 'enum',
     enum: ['PLANNING', 'APPROVED', 'IN_PROGRESS', 'COMPLETED', 'AUDITING'],

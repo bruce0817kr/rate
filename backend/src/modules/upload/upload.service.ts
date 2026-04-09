@@ -1,7 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Personnel } from '../personnel/personnel.entity';
+import { PersonnelEmploymentType } from '../personnel/personnel.enum';
 import { Project } from '../projects/project.entity';
 import { ProjectPersonnel } from '../participation/project-personnel.entity';
 import { User, UserRole } from '../users/user.entity';
@@ -89,8 +90,252 @@ export class UploadService {
     private teamRepository: Repository<Team>,
   ) {}
 
+  private normalizeKey(value?: string | null): string {
+    return (value ?? '')
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]/g, '');
+  }
+
+  private normalizeEmploymentType(value?: string): PersonnelEmploymentType {
+    const raw = (value ?? '').toString().trim();
+    if (!raw) {
+      return PersonnelEmploymentType.FULL_TIME;
+    }
+
+    const normalized = this.normalizeKey(raw);
+    const mapping: Record<string, PersonnelEmploymentType> = {
+      full: PersonnelEmploymentType.FULL_TIME,
+      fulltime: PersonnelEmploymentType.FULL_TIME,
+      regular: PersonnelEmploymentType.FULL_TIME,
+      정규: PersonnelEmploymentType.FULL_TIME,
+      정규직: PersonnelEmploymentType.FULL_TIME,
+      contract: PersonnelEmploymentType.CONTRACT,
+      계약: PersonnelEmploymentType.CONTRACT,
+      계약직: PersonnelEmploymentType.CONTRACT,
+      part: PersonnelEmploymentType.PART_TIME,
+      parttime: PersonnelEmploymentType.PART_TIME,
+      시간제: PersonnelEmploymentType.PART_TIME,
+      dispatch: PersonnelEmploymentType.DISPATCHED,
+      dispatched: PersonnelEmploymentType.DISPATCHED,
+      파견: PersonnelEmploymentType.DISPATCHED,
+      파견직: PersonnelEmploymentType.DISPATCHED,
+    };
+
+    if (mapping[normalized]) {
+      return mapping[normalized];
+    }
+
+    const upper = raw.toUpperCase() as PersonnelEmploymentType;
+    if (Object.values(PersonnelEmploymentType).includes(upper)) {
+      return upper;
+    }
+
+    throw new Error(`고용형태 값이 유효하지 않습니다. (입력값: ${raw})`);
+  }
+
+  private normalizeDateText(value: unknown): string {
+    const raw = (value ?? '').toString().trim();
+    if (!raw) {
+      return '';
+    }
+
+    // Accept dotted/slashed dates from uploads: 2024.03.01 / 2024/03/01
+    let normalized = raw.replace(/\./g, '-').replace(/\//g, '-');
+    if (/^\d{8}$/.test(normalized)) {
+      normalized = `${normalized.slice(0, 4)}-${normalized.slice(4, 6)}-${normalized.slice(6, 8)}`;
+    }
+
+    const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (!match) {
+      return normalized;
+    }
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+  }
+
+  private parseDateOrThrow(value: unknown, fieldName: string): Date {
+    const normalized = this.normalizeDateText(value);
+    if (!normalized) {
+      throw new Error(`${fieldName} 값이 비어 있습니다.`);
+    }
+
+    const strict = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (strict) {
+      const year = Number(strict[1]);
+      const month = Number(strict[2]);
+      const day = Number(strict[3]);
+      const parsed = new Date(Date.UTC(year, month - 1, day));
+
+      if (
+        parsed.getUTCFullYear() === year &&
+        parsed.getUTCMonth() + 1 === month &&
+        parsed.getUTCDate() === day
+      ) {
+        return parsed;
+      }
+    }
+
+    const fallback = new Date(normalized);
+    if (Number.isNaN(fallback.getTime())) {
+      throw new Error(`${fieldName} 날짜 형식이 올바르지 않습니다. (예: 2024-03-01 또는 2024.03.01)`);
+    }
+    return fallback;
+  }
+
+  private getErrorMessage(error: unknown): string {
+    if (typeof error === 'string') {
+      return error;
+    }
+
+    if (error instanceof BadRequestException) {
+      const response = error.getResponse();
+      if (typeof response === 'string') {
+        return response;
+      }
+
+      if (typeof response === 'object' && response !== null) {
+        const message = (response as { message?: string | string[] }).message;
+        if (Array.isArray(message)) {
+          return message.join(', ');
+        }
+        if (typeof message === 'string') {
+          return message;
+        }
+      }
+
+      return error.message;
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return '알 수 없는 오류가 발생했습니다.';
+  }
+
+  private toKoreanError(rawMessage: string): string {
+    const enumMatch = rawMessage.match(
+      /invalid input value for enum personnel_employmenttype_enum: "(.+?)"/i,
+    );
+    if (enumMatch) {
+      return `고용형태 값이 유효하지 않습니다. (입력값: ${enumMatch[1]})`;
+    }
+
+    if (rawMessage.startsWith('Employee not found:')) {
+      const employeeId = rawMessage.replace('Employee not found:', '').trim();
+      return `인력 정보를 찾을 수 없습니다. (사번: ${employeeId})`;
+    }
+
+    if (rawMessage.startsWith('Project not found:')) {
+      const projectName = rawMessage.replace('Project not found:', '').trim();
+      return `사업 정보를 찾을 수 없습니다. (사업명: ${projectName})`;
+    }
+
+    if (/duplicate key value violates unique constraint/i.test(rawMessage)) {
+      return '중복된 값이 있어 저장할 수 없습니다.';
+    }
+
+    if (/null value in column/i.test(rawMessage)) {
+      return '필수값이 비어 있어 저장할 수 없습니다.';
+    }
+
+    if (/invalid input syntax/i.test(rawMessage)) {
+      return '입력 형식이 올바르지 않습니다.';
+    }
+
+    if (/name is required/i.test(rawMessage)) {
+      return '팀명(name)은 필수 입력값입니다.';
+    }
+
+    return rawMessage;
+  }
+
+  private pushRowError(errors: string[], rowNumber: number, error: unknown): void {
+    const raw = this.getErrorMessage(error);
+    const translated = this.toKoreanError(raw);
+    errors.push(`행 ${rowNumber}: ${translated}`);
+  }
+
+  private async syncTeamsFromPersonnelRows(rows: PersonnelCsvRow[]): Promise<void> {
+    const teamMap = new Map<string, { department: string | null }>();
+
+    rows.forEach((row) => {
+      const teamName = row.team?.trim();
+      if (!teamName) {
+        return;
+      }
+
+      const department = row.department?.trim() || null;
+      const current = teamMap.get(teamName);
+      if (!current) {
+        teamMap.set(teamName, { department });
+        return;
+      }
+
+      if (!current.department && department) {
+        teamMap.set(teamName, { department });
+      }
+    });
+
+    const teamNames = Array.from(teamMap.keys());
+    if (teamNames.length === 0) {
+      return;
+    }
+
+    const existingTeams = await this.teamRepository.find({
+      where: { name: In(teamNames) },
+    });
+    const existingByName = new Map(existingTeams.map((team) => [team.name, team]));
+
+    const toCreate: Team[] = [];
+    const toUpdate: Team[] = [];
+
+    teamNames.forEach((teamName) => {
+      const source = teamMap.get(teamName)!;
+      const existing = existingByName.get(teamName);
+
+      if (!existing) {
+        toCreate.push(
+          this.teamRepository.create({
+            name: teamName,
+            department: source.department,
+            isActive: true,
+          }),
+        );
+        return;
+      }
+
+      let changed = false;
+      if (!existing.department && source.department) {
+        existing.department = source.department;
+        changed = true;
+      }
+      if (!existing.isActive) {
+        existing.isActive = true;
+        changed = true;
+      }
+
+      if (changed) {
+        toUpdate.push(existing);
+      }
+    });
+
+    if (toCreate.length > 0) {
+      await this.teamRepository.save(toCreate);
+    }
+    if (toUpdate.length > 0) {
+      await this.teamRepository.save(toUpdate);
+    }
+  }
+
   async uploadPersonnel(data: PersonnelCsvRow[]): Promise<UploadResult> {
     const result: UploadResult = { success: 0, failed: 0, errors: [] };
+    const successfulRows: PersonnelCsvRow[] = [];
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
@@ -99,20 +344,22 @@ export class UploadService {
           where: { employeeId: row.employeeId },
         });
 
+        const employmentType = this.normalizeEmploymentType(row.employmentType);
+
         if (existing) {
           Object.assign(existing, {
             name: row.name,
             gender: row.gender,
             highestEducation: row.highestEducation,
-            educationYear: parseInt(row.educationYear) || null,
+            educationYear: parseInt(row.educationYear, 10) || null,
             nationalResearcherNumber: row.nationalResearcherNumber,
-            birthDate: new Date(row.birthDate),
+            birthDate: this.parseDateOrThrow(row.birthDate, '생년월일'),
             department: row.department,
             team: row.team,
             position: row.position,
             salaryBand: row.salaryBand,
-            employmentType: row.employmentType || 'FULL_TIME',
-            hireDate: new Date(row.hireDate),
+            employmentType,
+            hireDate: this.parseDateOrThrow(row.hireDate, '입사일'),
             isActive: true,
             salaryValidity: {
               startDate: new Date(),
@@ -126,16 +373,16 @@ export class UploadService {
             name: row.name,
             gender: row.gender,
             highestEducation: row.highestEducation,
-            educationYear: parseInt(row.educationYear) || undefined,
+            educationYear: parseInt(row.educationYear, 10) || undefined,
             nationalResearcherNumber: row.nationalResearcherNumber,
-            birthDate: new Date(row.birthDate),
+            birthDate: this.parseDateOrThrow(row.birthDate, '생년월일'),
             ssn: 'ENC_SKIP',
             department: row.department,
             team: row.team,
             position: row.position,
             salaryBand: row.salaryBand,
-            employmentType: row.employmentType || 'FULL_TIME',
-            hireDate: new Date(row.hireDate),
+            employmentType,
+            hireDate: this.parseDateOrThrow(row.hireDate, '입사일'),
             isActive: true,
             salaryValidity: {
               startDate: new Date(),
@@ -144,11 +391,20 @@ export class UploadService {
           });
           await this.personnelRepository.save(personnel);
         }
+
+        successfulRows.push(row);
         result.success++;
       } catch (error) {
         result.failed++;
-        result.errors.push(`Row ${i + 2}: ${error.message}`);
+        this.pushRowError(result.errors, i + 2, error);
       }
+    }
+
+    try {
+      await this.syncTeamsFromPersonnelRows(successfulRows);
+    } catch (error) {
+      const raw = this.getErrorMessage(error);
+      result.errors.push(`팀 목록 동기화 실패: ${this.toKoreanError(raw)}`);
     }
 
     return result;
@@ -168,8 +424,8 @@ export class UploadService {
           Object.assign(existing, {
             projectType: row.projectType || 'NATIONAL_RD',
             managingDepartment: row.managingDepartment,
-            startDate: new Date(row.startDate),
-            endDate: new Date(row.endDate),
+            startDate: this.parseDateOrThrow(row.startDate, '사업 시작일'),
+            endDate: this.parseDateOrThrow(row.endDate, '사업 종료일'),
             totalBudget: parseFloat(row.totalBudget) || 0,
             personnelBudget: parseFloat(row.personnelBudget) || 0,
             status: row.status || 'IN_PROGRESS',
@@ -186,8 +442,8 @@ export class UploadService {
             name: row.name,
             projectType: row.projectType || 'NATIONAL_RD',
             managingDepartment: row.managingDepartment,
-            startDate: new Date(row.startDate),
-            endDate: new Date(row.endDate),
+            startDate: this.parseDateOrThrow(row.startDate, '사업 시작일'),
+            endDate: this.parseDateOrThrow(row.endDate, '사업 종료일'),
             totalBudget: parseFloat(row.totalBudget) || 0,
             personnelBudget: parseFloat(row.personnelBudget) || 0,
             status: row.status || 'IN_PROGRESS',
@@ -200,17 +456,20 @@ export class UploadService {
           });
           await this.projectRepository.save(project);
         }
+
         result.success++;
       } catch (error) {
         result.failed++;
-        result.errors.push(`Row ${i + 2}: ${error.message}`);
+        this.pushRowError(result.errors, i + 2, error);
       }
     }
 
     return result;
   }
 
-  async uploadProjectPersonnel(data: ProjectPersonnelCsvRow[]): Promise<UploadResult> {
+  async uploadProjectPersonnel(
+    data: ProjectPersonnelCsvRow[],
+  ): Promise<UploadResult> {
     const result: UploadResult = { success: 0, failed: 0, errors: [] };
 
     for (let i = 0; i < data.length; i++) {
@@ -242,11 +501,11 @@ export class UploadService {
         if (pp) {
           Object.assign(pp, {
             participationRate,
-            startDate: new Date(row.startDate),
-            endDate: row.endDate ? new Date(row.endDate) : null,
+            startDate: this.parseDateOrThrow(row.startDate, '참여 시작일'),
+            endDate: row.endDate ? this.parseDateOrThrow(row.endDate, '참여 종료일') : null,
             calculationMethod: row.calculationMethod || 'MONTHLY',
             expenseCode: row.expenseCode || 'personnel-base',
-            legalBasisCode: row.legalBasisCode || '고등과학기술촉진법',
+            legalBasisCode: row.legalBasisCode || 'DEFAULT',
             participatingTeam: row.participatingTeam || personnel.team,
             role: (row.role as any) || 'PARTICIPATING_RESEARCHER',
           });
@@ -256,20 +515,21 @@ export class UploadService {
             personnel,
             project,
             participationRate,
-            startDate: new Date(row.startDate),
-            endDate: row.endDate ? new Date(row.endDate) : null,
+            startDate: this.parseDateOrThrow(row.startDate, '참여 시작일'),
+            endDate: row.endDate ? this.parseDateOrThrow(row.endDate, '참여 종료일') : null,
             calculationMethod: row.calculationMethod || 'MONTHLY',
             expenseCode: row.expenseCode || 'personnel-base',
-            legalBasisCode: row.legalBasisCode || '고등과학기술촉진법',
+            legalBasisCode: row.legalBasisCode || 'DEFAULT',
             participatingTeam: row.participatingTeam || personnel.team,
             role: (row.role as any) || 'PARTICIPATING_RESEARCHER',
           });
           await this.projectPersonnelRepository.save(pp);
         }
+
         result.success++;
       } catch (error) {
         result.failed++;
-        result.errors.push(`Row ${i + 2}: ${error.message}`);
+        this.pushRowError(result.errors, i + 2, error);
       }
     }
 
@@ -305,10 +565,11 @@ export class UploadService {
           });
           await this.userRepository.save(user);
         }
+
         result.success++;
       } catch (error) {
         result.failed++;
-        result.errors.push(`Row ${i + 2}: ${error.message}`);
+        this.pushRowError(result.errors, i + 2, error);
       }
     }
 
@@ -337,7 +598,9 @@ export class UploadService {
           managerName: row.managerName?.trim() || null,
           managerEmail: row.managerEmail?.trim() || null,
           managerPhone: row.managerPhone?.trim() || null,
-          plannedHeadcount: row.plannedHeadcount ? parseInt(row.plannedHeadcount, 10) || null : null,
+          plannedHeadcount: row.plannedHeadcount
+            ? parseInt(row.plannedHeadcount, 10) || null
+            : null,
           isActive: row.isActive ? row.isActive.toLowerCase() !== 'false' : true,
         };
 
@@ -352,10 +615,11 @@ export class UploadService {
         result.success++;
       } catch (error) {
         result.failed++;
-        result.errors.push(`Row ${i + 2}: ${error.message}`);
+        this.pushRowError(result.errors, i + 2, error);
       }
     }
 
     return result;
   }
 }
+

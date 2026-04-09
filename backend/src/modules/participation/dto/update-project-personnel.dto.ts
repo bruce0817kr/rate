@@ -1,5 +1,4 @@
 import { IsString, IsNotEmpty, IsNumber, Min, Max, IsDateString, IsOptional, IsEnum } from 'class-validator';
-import { Type } from 'class-transformer';
 import { ProjectPersonnelRole } from '../project-personnel-role.enum';
 
 export class UpdateProjectPersonnelDto {
@@ -19,12 +18,10 @@ export class UpdateProjectPersonnelDto {
 
   @IsDateString()
   @IsOptional()
-  @Type(() => Date)
   startDate?: string;
 
   @IsDateString()
   @IsOptional()
-  @Type(() => Date)
   endDate?: string;
 
   @IsEnum(['MONTHLY', 'DAILY', 'HOURLY'])
@@ -50,4 +47,20 @@ export class UpdateProjectPersonnelDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  annualSalary?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  @Max(60)
+  participationMonths?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  personnelCostOverride?: number;
 }

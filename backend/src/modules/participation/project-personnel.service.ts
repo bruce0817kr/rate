@@ -110,6 +110,9 @@ export class ProjectPersonnelService {
       ...createProjectPersonnelDto,
       project,
       personnel,
+      participationMonths: createProjectPersonnelDto.participationMonths ?? 12,
+      annualSalary: createProjectPersonnelDto.annualSalary ?? null,
+      personnelCostOverride: createProjectPersonnelDto.personnelCostOverride ?? null,
     });
 
     const savedProjectPersonnel = await this.projectPersonnelRepository.save(projectPersonnel);
@@ -130,7 +133,10 @@ export class ProjectPersonnelService {
   }
 
   async findAll(options: FindManyOptions<ProjectPersonnel> = {}): Promise<ProjectPersonnel[]> {
-    return await this.projectPersonnelRepository.find(options);
+    return await this.projectPersonnelRepository.find({
+      relations: ['project', 'personnel'],
+      ...options,
+    });
   }
 
   async findOne(id: string): Promise<ProjectPersonnel> {
