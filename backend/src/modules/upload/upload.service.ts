@@ -5,6 +5,7 @@ import { Personnel } from '../personnel/personnel.entity';
 import { PersonnelEmploymentType } from '../personnel/personnel.enum';
 import { Project } from '../projects/project.entity';
 import { ProjectPersonnel } from '../participation/project-personnel.entity';
+import { ProjectPersonnelSegment } from '../participation/project-personnel-segment.entity';
 import { User, UserRole } from '../users/user.entity';
 import { Team } from '../teams/team.entity';
 import * as bcrypt from 'bcrypt';
@@ -55,6 +56,7 @@ export interface ProjectPersonnelCsvRow {
   expenseCode: string;
   legalBasisCode: string;
   participatingTeam: string;
+  notes?: string;
 }
 
 export interface UserCsvRow {
@@ -84,6 +86,8 @@ export class UploadService {
     private projectRepository: Repository<Project>,
     @InjectRepository(ProjectPersonnel)
     private projectPersonnelRepository: Repository<ProjectPersonnel>,
+    @InjectRepository(ProjectPersonnelSegment)
+    private projectPersonnelSegmentRepository: Repository<ProjectPersonnelSegment>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @InjectRepository(Team)
@@ -156,6 +160,44 @@ export class UploadService {
     const month = Number(match[2]);
     const day = Number(match[3]);
     return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+  }
+
+  private countInclusiveMonths(startDate: Date, endDate: Date): number {
+    return (
+      (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12 +
+      (endDate.getUTCMonth() - startDate.getUTCMonth()) +
+      1
+    );
+  }
+
+  private syncLegacyParticipationFromSegments(
+    projectPersonnel: ProjectPersonnel,
+    segments: ProjectPersonnelSegment[],
+  ): ProjectPersonnel {
+    const ordered = [...segments].sort(
+      (left, right) => new Date(left.startDate).getTime() - new Date(right.startDate).getTime(),
+    );
+    const now = new Date();
+    const currentSegment = ordered.find((segment) => {
+      const startDate = new Date(segment.startDate);
+      const endDate = new Date(segment.endDate);
+      return startDate <= now && endDate >= now;
+    });
+
+    projectPersonnel.startDate = ordered[0].startDate;
+    projectPersonnel.endDate = ordered[ordered.length - 1].endDate;
+    projectPersonnel.participationRate = Number(currentSegment?.participationRate || 0);
+    projectPersonnel.participationMonths = ordered.reduce((sum, segment) => {
+      return sum + this.countInclusiveMonths(new Date(segment.startDate), new Date(segment.endDate));
+    }, 0);
+    projectPersonnel.personnelCostOverride = ordered.reduce<number | null>((sum, segment) => {
+      if (segment.personnelCostOverride === null || segment.personnelCostOverride === undefined) {
+        return sum;
+      }
+      return (sum ?? 0) + Number(segment.personnelCostOverride);
+    }, null);
+
+    return projectPersonnel;
   }
 
   private parseDateOrThrow(value: unknown, fieldName: string): Date {
@@ -471,22 +513,30 @@ export class UploadService {
     data: ProjectPersonnelCsvRow[],
   ): Promise<UploadResult> {
     const result: UploadResult = { success: 0, failed: 0, errors: [] };
+    const groups = new Map<string, Array<{ row: ProjectPersonnelCsvRow; rowNumber: number }>>();
 
-    for (let i = 0; i < data.length; i++) {
-      const row = data[i];
+    data.forEach((row, index) => {
+      const key = `${row.employeeId}::${row.projectName}`;
+      const current = groups.get(key) || [];
+      current.push({ row, rowNumber: index + 2 });
+      groups.set(key, current);
+    });
+
+    for (const entries of groups.values()) {
+      const first = entries[0];
       try {
         const personnel = await this.personnelRepository.findOne({
-          where: { employeeId: row.employeeId },
+          where: { employeeId: first.row.employeeId },
         });
         if (!personnel) {
-          throw new Error(`Employee not found: ${row.employeeId}`);
+          throw new Error(`Employee not found: ${first.row.employeeId}`);
         }
 
         const project = await this.projectRepository.findOne({
-          where: { name: row.projectName },
+          where: { name: first.row.projectName },
         });
         if (!project) {
-          throw new Error(`Project not found: ${row.projectName}`);
+          throw new Error(`Project not found: ${first.row.projectName}`);
         }
 
         let pp = await this.projectPersonnelRepository.findOne({
@@ -496,40 +546,62 @@ export class UploadService {
           },
         });
 
-        const participationRate = parseFloat(row.participationRate);
+        const segments = entries
+          .map(({ row }, index) =>
+            this.projectPersonnelSegmentRepository.create({
+              projectPersonnel: pp as ProjectPersonnel,
+              startDate: this.parseDateOrThrow(row.startDate, '참여 시작일'),
+              endDate: row.endDate
+                ? this.parseDateOrThrow(row.endDate, '참여 종료일')
+                : this.parseDateOrThrow(row.startDate, '참여 종료일'),
+              participationRate: parseFloat(row.participationRate) || 0,
+              personnelCostOverride: null,
+              sortOrder: index,
+              notes: row.notes || null,
+            }),
+          )
+          .sort((left, right) => new Date(left.startDate).getTime() - new Date(right.startDate).getTime());
 
         if (pp) {
           Object.assign(pp, {
-            participationRate,
-            startDate: this.parseDateOrThrow(row.startDate, '참여 시작일'),
-            endDate: row.endDate ? this.parseDateOrThrow(row.endDate, '참여 종료일') : null,
-            calculationMethod: row.calculationMethod || 'MONTHLY',
-            expenseCode: row.expenseCode || 'personnel-base',
-            legalBasisCode: row.legalBasisCode || 'DEFAULT',
-            participatingTeam: row.participatingTeam || personnel.team,
-            role: (row.role as any) || 'PARTICIPATING_RESEARCHER',
+            calculationMethod: first.row.calculationMethod || 'MONTHLY',
+            expenseCode: first.row.expenseCode || 'personnel-base',
+            legalBasisCode: first.row.legalBasisCode || 'DEFAULT',
+            participatingTeam: first.row.participatingTeam || personnel.team,
+            role: (first.row.role as any) || 'PARTICIPATING_RESEARCHER',
           });
-          await this.projectPersonnelRepository.save(pp);
         } else {
           pp = this.projectPersonnelRepository.create({
             personnel,
             project,
-            participationRate,
-            startDate: this.parseDateOrThrow(row.startDate, '참여 시작일'),
-            endDate: row.endDate ? this.parseDateOrThrow(row.endDate, '참여 종료일') : null,
-            calculationMethod: row.calculationMethod || 'MONTHLY',
-            expenseCode: row.expenseCode || 'personnel-base',
-            legalBasisCode: row.legalBasisCode || 'DEFAULT',
-            participatingTeam: row.participatingTeam || personnel.team,
-            role: (row.role as any) || 'PARTICIPATING_RESEARCHER',
+            calculationMethod: first.row.calculationMethod || 'MONTHLY',
+            expenseCode: first.row.expenseCode || 'personnel-base',
+            legalBasisCode: first.row.legalBasisCode || 'DEFAULT',
+            participatingTeam: first.row.participatingTeam || personnel.team,
+            role: (first.row.role as any) || 'PARTICIPATING_RESEARCHER',
+            participationRate: 0,
+            startDate: this.parseDateOrThrow(first.row.startDate, '참여 시작일'),
+            endDate: first.row.endDate ? this.parseDateOrThrow(first.row.endDate, '참여 종료일') : null,
+            participationMonths: 1,
           });
-          await this.projectPersonnelRepository.save(pp);
         }
 
-        result.success++;
+        pp = await this.projectPersonnelRepository.save(pp);
+        await this.projectPersonnelSegmentRepository.delete({ projectPersonnel: { id: pp.id } as any });
+        const segmentsToSave = segments.map((segment) =>
+          this.projectPersonnelSegmentRepository.create({
+            ...segment,
+            projectPersonnel: pp,
+          }),
+        );
+        const savedSegments = await this.projectPersonnelSegmentRepository.save(segmentsToSave);
+        this.syncLegacyParticipationFromSegments(pp, savedSegments);
+        await this.projectPersonnelRepository.save(pp);
+
+        result.success += entries.length;
       } catch (error) {
-        result.failed++;
-        this.pushRowError(result.errors, i + 2, error);
+        result.failed += entries.length;
+        entries.forEach(({ rowNumber }) => this.pushRowError(result.errors, rowNumber, error));
       }
     }
 
