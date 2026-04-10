@@ -27,6 +27,7 @@ interface TeamUtilizationData {
   totalAllocation: number;
   availableCapacity: number;
   utilizationPercentage: number;
+  memberCount: number;
   status: 'OK' | 'WARNING' | 'CRITICAL';
 }
 
@@ -70,6 +71,18 @@ export class ParticipationMonitoringService {
     });
 
     return Number(segment?.participationRate || 0);
+  }
+
+  private async getActiveTeamMemberCounts(): Promise<Record<string, number>> {
+    const activePersonnel = await this.personnelRepository.find({
+      where: { isActive: true },
+    });
+
+    return activePersonnel.reduce<Record<string, number>>((acc, person) => {
+      const team = person.team || '???';
+      acc[team] = (acc[team] || 0) + 1;
+      return acc;
+    }, {});
   }
 
   /**
@@ -241,8 +254,6 @@ export class ParticipationMonitoringService {
     criticalThreshold: number = 95,
   ): Promise<ParticipationAlert[]> {
     const alerts: ParticipationAlert[] = [];
-    
-    // Get all projects with their participating teams and calculate team allocations
     const projects = await this.projectRepository
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.projectPersonnel', 'projectPersonnel')
@@ -251,13 +262,13 @@ export class ParticipationMonitoringService {
       .where('project.status IN (:...status)', { status: ['APPROVED', 'IN_PROGRESS', 'PLANNING'] })
       .getMany();
 
-    // Calculate team allocations
     const teamAllocations: Record<string, number> = {};
-    
+    const teamMembers = await this.getActiveTeamMemberCounts();
+
     for (const project of projects) {
       for (const pp of project.projectPersonnel) {
-        if (!pp.endDate || pp.endDate > new Date()) { // Only active participations
-          const team = pp.participatingTeam || pp.personnel.team; // Use participating team or fallback to personnel team
+        if (!pp.endDate || pp.endDate > new Date()) {
+          const team = pp.participatingTeam || pp.personnel.team;
           if (!teamAllocations[team]) {
             teamAllocations[team] = 0;
           }
@@ -266,22 +277,23 @@ export class ParticipationMonitoringService {
       }
     }
 
-    // Generate alerts based on utilization
     for (const [teamName, totalAllocation] of Object.entries(teamAllocations)) {
+      const memberCount = teamMembers[teamName] || 0;
+      const averageParticipationRate = memberCount > 0 ? totalAllocation / memberCount : 0;
       let severity: ParticipationAlert['severity'] = 'LOW';
       let title: string;
       let message: string;
-      
-      if (totalAllocation >= criticalThreshold) {
+
+      if (averageParticipationRate >= criticalThreshold) {
         severity = 'CRITICAL';
-        title = `팀 참여율 위험: ${teamName}`;
-        message = `팀 ${teamName}의 총 참여 할당률이 ${totalAllocation}%로 위험 수준(${criticalThreshold}% 이상)에 도달했습니다.`;
-      } else if (totalAllocation >= warningThreshold) {
+        title = `? ?? ??? ??: ${teamName}`;
+        message = `? ${teamName}? ?? ???? ${averageParticipationRate.toFixed(1)}%? ?? ??(${criticalThreshold}% ??)? ??????.`;
+      } else if (averageParticipationRate >= warningThreshold) {
         severity = 'MEDIUM';
-        title = `팀 참여율 주의: ${teamName}`;
-        message = `팀 ${teamName}의 총 참여 할당률이 ${totalAllocation}%로 주의 수준(${warningThreshold}% 이상)에 도달했습니다.`;
+        title = `? ?? ??? ??: ${teamName}`;
+        message = `? ${teamName}? ?? ???? ${averageParticipationRate.toFixed(1)}%? ?? ??(${warningThreshold}% ??)? ??????.`;
       } else {
-        continue; // No alert needed
+        continue;
       }
 
       const alert: ParticipationAlert = {
@@ -297,15 +309,16 @@ export class ParticipationMonitoringService {
         metadata: {
           teamName,
           totalAllocation,
-          availableCapacity: Math.max(0, 100 - totalAllocation),
-          utilizationPercentage: totalAllocation,
-          thresholdExceeded: totalAllocation - (severity === 'CRITICAL' ? criticalThreshold : warningThreshold),
+          memberCount,
+          availableCapacity: Math.max(0, 100 - averageParticipationRate),
+          utilizationPercentage: averageParticipationRate,
+          thresholdExceeded: averageParticipationRate - (severity === 'CRITICAL' ? criticalThreshold : warningThreshold),
         },
       };
-      
+
       alerts.push(alert);
     }
-    
+
     return alerts;
   }
 
@@ -316,7 +329,7 @@ export class ParticipationMonitoringService {
    */
   async checkProjectHighParticipation(threshold: number = 90): Promise<ParticipationAlert[]> {
     const alerts: ParticipationAlert[] = [];
-    
+
     const projects = await this.projectRepository
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.projectPersonnel', 'projectPersonnel')
@@ -325,17 +338,21 @@ export class ParticipationMonitoringService {
       .getMany();
 
     for (const project of projects) {
-      const totalParticipationRate = project.projectPersonnel
-        .filter(pp => !pp.endDate || pp.endDate > new Date()) // Only active participations
+      const activeParticipations = project.projectPersonnel
+        .filter(pp => !pp.endDate || pp.endDate > new Date())
+        .filter(pp => this.getCurrentParticipationRate(pp) > 0);
+      const totalParticipationRate = activeParticipations
         .reduce((sum, pp) => sum + this.getCurrentParticipationRate(pp), 0);
+      const memberCount = activeParticipations.length;
+      const averageParticipationRate = memberCount > 0 ? totalParticipationRate / memberCount : 0;
 
-      if (totalParticipationRate >= threshold) {
+      if (averageParticipationRate >= threshold) {
         const alert: ParticipationAlert = {
           id: `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           type: 'PROJECT_HIGH_PARTICIPATION',
-          severity: totalParticipationRate >= 95 ? 'HIGH' : 'MEDIUM',
-          title: `프로젝트 참여율 높음: ${project.name}`,
-          message: `프로젝트 "${project.name}"의 총 참여율이 ${totalParticipationRate}%로 임계값(${threshold}%)을 초과했습니다.`,
+          severity: averageParticipationRate >= 95 ? 'HIGH' : 'MEDIUM',
+          title: `???? ?? ??? ??: ${project.name}`,
+          message: `???? "${project.name}"? ?? ???? ${averageParticipationRate.toFixed(1)}%? ???(${threshold}%)? ??????.`,
           entityId: project.id,
           entityType: 'Project',
           timestamp: new Date(),
@@ -346,18 +363,18 @@ export class ParticipationMonitoringService {
             projectType: project.projectType,
             managingTeam: project.managingTeam,
             totalParticipationRate,
+            averageParticipationRate,
+            memberCount,
             threshold,
-            exceedingAmount: totalParticipationRate - threshold,
-            activeParticipations: project.projectPersonnel
-              .filter(pp => !pp.endDate || pp.endDate > new Date())
-              .length,
+            exceedingAmount: averageParticipationRate - threshold,
+            activeParticipations: memberCount,
           },
         };
-        
+
         alerts.push(alert);
       }
     }
-    
+
     return alerts;
   }
 
@@ -392,12 +409,12 @@ export class ParticipationMonitoringService {
       .where('project.status IN (:...status)', { status: ['APPROVED', 'IN_PROGRESS', 'PLANNING'] })
       .getMany();
 
-    // Calculate team allocations
     const teamAllocations: Record<string, number> = {};
-    
+    const teamMembers = await this.getActiveTeamMemberCounts();
+
     for (const project of projects) {
       for (const pp of project.projectPersonnel) {
-        if (!pp.endDate || pp.endDate > new Date()) { // Only active participations
+        if (!pp.endDate || pp.endDate > new Date()) {
           const team = pp.participatingTeam || pp.personnel.team;
           if (!teamAllocations[team]) {
             teamAllocations[team] = 0;
@@ -407,21 +424,23 @@ export class ParticipationMonitoringService {
       }
     }
 
-    // Convert to TeamUtilizationData array
     return Object.entries(teamAllocations).map(([teamName, totalAllocation]) => {
+      const memberCount = teamMembers[teamName] || 0;
+      const averageParticipationRate = memberCount > 0 ? totalAllocation / memberCount : 0;
       let status: TeamUtilizationData['status'] = 'OK';
-      
-      if (totalAllocation >= 95) {
+
+      if (averageParticipationRate >= 95) {
         status = 'CRITICAL';
-      } else if (totalAllocation >= 80) {
+      } else if (averageParticipationRate >= 80) {
         status = 'WARNING';
       }
-      
+
       return {
         teamName,
         totalAllocation,
-        availableCapacity: Math.max(0, 100 - totalAllocation),
-        utilizationPercentage: totalAllocation,
+        memberCount,
+        availableCapacity: Math.max(0, 100 - averageParticipationRate),
+        utilizationPercentage: averageParticipationRate,
         status,
       };
     });
