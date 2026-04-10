@@ -145,6 +145,17 @@ export class UploadService {
       return '';
     }
 
+    if (/^\d+(\.\d+)?$/.test(raw)) {
+      const serial = Number(raw);
+      if (Number.isFinite(serial) && serial > 20000 && serial < 90000) {
+        const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+        const parsed = new Date(excelEpoch.getTime() + Math.round(serial) * 86400000);
+        return `${parsed.getUTCFullYear().toString().padStart(4, '0')}-${(parsed.getUTCMonth() + 1)
+          .toString()
+          .padStart(2, '0')}-${parsed.getUTCDate().toString().padStart(2, '0')}`;
+      }
+    }
+
     // Accept dotted/slashed dates from uploads: 2024.03.01 / 2024/03/01
     let normalized = raw.replace(/\./g, '-').replace(/\//g, '-');
     if (/^\d{8}$/.test(normalized)) {

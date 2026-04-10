@@ -13,17 +13,36 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../users/user.entity';
 import * as XLSX from 'xlsx';
+import { Readable } from 'stream';
+import csvParser from 'csv-parser';
 
 @Controller('upload')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
-  private parseExcel(buffer: Buffer): any[] {
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
+  private async parseExcel(file: Express.Multer.File): Promise<any[]> {
+    const extension = file.originalname.split('.').pop()?.toLowerCase();
+
+    if (extension === 'csv') {
+      const utf8Text = new TextDecoder('utf-8', { fatal: false }).decode(file.buffer);
+      const csvText = utf8Text.includes('\ufffd')
+        ? new TextDecoder('euc-kr', { fatal: false }).decode(file.buffer)
+        : utf8Text;
+      return await new Promise<any[]>((resolve, reject) => {
+        const rows: any[] = [];
+        Readable.from([csvText])
+          .pipe(csvParser())
+          .on('data', (row) => rows.push(row))
+          .on('end', () => resolve(rows))
+          .on('error', reject);
+      });
+    }
+
+    const workbook = XLSX.read(file.buffer, { type: 'buffer', raw: false, cellDates: false });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    return XLSX.utils.sheet_to_json(worksheet);
+    return XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
   }
 
   @Post('personnel')
@@ -34,7 +53,7 @@ export class UploadController {
       throw new BadRequestException('File is required');
     }
 
-    const data = this.parseExcel(file.buffer);
+    const data = await this.parseExcel(file);
     const result = await this.uploadService.uploadPersonnel(data as PersonnelCsvRow[]);
     return {
       message: `Uploaded ${result.success} personnel, ${result.failed} failed`,
@@ -50,7 +69,7 @@ export class UploadController {
       throw new BadRequestException('File is required');
     }
 
-    const data = this.parseExcel(file.buffer);
+    const data = await this.parseExcel(file);
     const result = await this.uploadService.uploadProjects(data as ProjectCsvRow[]);
     return {
       message: `Uploaded ${result.success} projects, ${result.failed} failed`,
@@ -66,7 +85,7 @@ export class UploadController {
       throw new BadRequestException('File is required');
     }
 
-    const data = this.parseExcel(file.buffer);
+    const data = await this.parseExcel(file);
     const result = await this.uploadService.uploadProjectPersonnel(data as ProjectPersonnelCsvRow[]);
     return {
       message: `Uploaded ${result.success} participations, ${result.failed} failed`,
@@ -82,7 +101,7 @@ export class UploadController {
       throw new BadRequestException('File is required');
     }
 
-    const data = this.parseExcel(file.buffer);
+    const data = await this.parseExcel(file);
     const result = await this.uploadService.uploadUsers(data as UserCsvRow[]);
     return {
       message: `Uploaded ${result.success} users, ${result.failed} failed`,
@@ -98,7 +117,7 @@ export class UploadController {
       throw new BadRequestException('File is required');
     }
 
-    const data = this.parseExcel(file.buffer);
+    const data = await this.parseExcel(file);
     const result = await this.uploadService.uploadTeams(data as TeamCsvRow[]);
     return {
       message: `Uploaded ${result.success} teams, ${result.failed} failed`,
