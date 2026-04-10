@@ -1,0 +1,9 @@
+param(
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Args
+)
+
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
+
+& browser-use @Args
