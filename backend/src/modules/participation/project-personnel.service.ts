@@ -56,7 +56,7 @@ export class ProjectPersonnelService {
     ordered.forEach((segment) => {
       this.participationCalculationService.validateParticipationRate(Number(segment.participationRate));
       if (new Date(segment.startDate) > new Date(segment.endDate)) {
-        throw new BadRequestException('참여 구간의 시작일은 종료일보다 늦을 수 없습니다.');
+        throw new BadRequestException('筌〓챷肉??닌덉퍢????뽰삂??? ?ル굝利??곕궖??????????곷뮸??덈뼄.');
       }
     });
 
@@ -64,7 +64,7 @@ export class ProjectPersonnelService {
       const prevEnd = new Date(ordered[i - 1].endDate);
       const currentStart = new Date(ordered[i].startDate);
       if (currentStart <= prevEnd) {
-        throw new BadRequestException('동일 참여자의 참여 구간 기간이 서로 겹칠 수 없습니다.');
+        throw new BadRequestException('??덉뵬 筌〓챷肉?癒?벥 筌〓챷肉??닌덉퍢 疫꿸퀗而????뺤쨮 野껊???????곷뮸??덈뼄.');
       }
     }
   }
@@ -206,13 +206,13 @@ export class ProjectPersonnelService {
 
     if (wouldBePI > 3) {
       throw new BadRequestException(
-        `연구책임자 역할이 ${wouldBePI}개가 됩니다. 한 사람이 연구책임자로 참여할 수 있는 프로젝트는 최대 3개입니다.`,
+        `??⑤슢?←춯?援????????${wouldBePI}?띠룇裕? ??紐껊퉵?? ?????????⑤슢?←춯?援????夷?嶺뚣볦굣????????덈츎 ?熬곣뫁夷??釉띾콦??嶺뚣끉裕? 3?띠룇裕????덈펲.`,
       );
     }
 
     if (wouldBeTotal > 5) {
       throw new BadRequestException(
-        `총 역할 수가 ${wouldBeTotal}개가 됩니다. 한 사람이 참여할 수 있는 총 역할(연구책임자+공동연구원+참여연구원)은 최대 5개입니다.`,
+        `????????? ${wouldBeTotal}?띠룇裕? ??紐껊퉵?? ???????嶺뚣볦굣????????덈츎 ????????⑤슢?←춯?援?????ㅻ쾳???⑤슢???嶺뚣볦굣???⑤슢????? 嶺뚣끉裕? 5?띠룇裕????덈펲.`,
       );
     }
   }
@@ -347,7 +347,7 @@ export class ProjectPersonnelService {
     if (updateData.participationRate !== undefined) {
       this.participationCalculationService.validateParticipationRate(updateData.participationRate);
 
-      // 개인 총 참여율 100% 초과 허용 정책: 개별 참여율 유효성(0~100)만 검증
+      // 媛쒕퀎 李몄뿬??媛??먯껜留?寃利앺븳?? 珥앺빀 100% 珥덇낵??紐⑤땲?곕쭅 寃쎄퀬濡?泥섎━?쒕떎.
     }
 
     if (updateData.role !== undefined) {
