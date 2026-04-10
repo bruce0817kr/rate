@@ -1,5 +1,7 @@
-import { IsString, IsNotEmpty, IsNumber, Min, Max, IsDateString, IsOptional, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsString, IsNotEmpty, IsNumber, Min, Max, IsDateString, IsOptional, IsEnum, IsArray, ValidateNested } from 'class-validator';
 import { ProjectPersonnelRole } from '../project-personnel-role.enum';
+import { ProjectPersonnelSegmentDto } from './project-personnel-segment.dto';
 
 export class CreateProjectPersonnelDto {
   @IsString()
@@ -60,4 +62,10 @@ export class CreateProjectPersonnelDto {
   @IsOptional()
   @Min(0)
   personnelCostOverride?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProjectPersonnelSegmentDto)
+  segments?: ProjectPersonnelSegmentDto[];
 }

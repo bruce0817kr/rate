@@ -3,6 +3,7 @@ import { Project } from '../projects/project.entity';
 import { Personnel } from '../personnel/personnel.entity';
 import { ProjectPersonnelRole } from './project-personnel-role.enum';
 import { PersonnelCost } from './personnel-cost.entity';
+import { ProjectPersonnelSegment } from './project-personnel-segment.entity';
 
 @Entity('project_personnel')
 export class ProjectPersonnel {
@@ -19,6 +20,9 @@ export class ProjectPersonnel {
 
   @OneToMany(() => PersonnelCost, (pc) => pc.projectPersonnel)
   personnelCosts: PersonnelCost[];
+
+  @OneToMany(() => ProjectPersonnelSegment, (segment) => segment.projectPersonnel)
+  segments: ProjectPersonnelSegment[];
 
   @Column('decimal', { precision: 5, scale: 2 })
   participationRate: number; // Percentage (0-100)

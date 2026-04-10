@@ -7,6 +7,7 @@ import { Personnel } from '../personnel/personnel.entity';
 import { Project } from '../projects/project.entity';
 import { ParticipationCalculationService } from './participation-calculation.service';
 import { AuditService } from '../audit/audit.service';
+import { ProjectPersonnelSegment } from './project-personnel-segment.entity';
 
 interface ParticipationAlert {
   id: string;
@@ -42,6 +43,35 @@ export class ParticipationMonitoringService {
     private auditService: AuditService,
   ) {}
 
+  private buildFallbackSegment(pp: ProjectPersonnel): ProjectPersonnelSegment {
+    return {
+      id: `fallback-${pp.id}`,
+      projectPersonnel: pp,
+      startDate: pp.startDate,
+      endDate: pp.endDate || new Date('9999-12-31'),
+      participationRate: Number(pp.participationRate || 0),
+      personnelCostOverride: pp.personnelCostOverride ?? null,
+      sortOrder: 0,
+      notes: null,
+      createdAt: pp.createdAt,
+      updatedAt: pp.updatedAt,
+    };
+  }
+
+  private getSegments(pp: ProjectPersonnel): ProjectPersonnelSegment[] {
+    return pp.segments?.length ? pp.segments : [this.buildFallbackSegment(pp)];
+  }
+
+  private getCurrentParticipationRate(pp: ProjectPersonnel, at: Date = new Date()): number {
+    const segment = this.getSegments(pp).find((item) => {
+      const start = new Date(item.startDate);
+      const end = new Date(item.endDate);
+      return start <= at && end >= at;
+    });
+
+    return Number(segment?.participationRate || 0);
+  }
+
   /**
    * Validate that no individual's total participation rate exceeds 100%
    * and that role-based limits are respected (max 3 PI roles, max 5 total roles)
@@ -55,17 +85,19 @@ export class ParticipationMonitoringService {
       .createQueryBuilder('personnel')
       .leftJoinAndSelect('personnel.projectPersonnel', 'projectPersonnel')
       .leftJoinAndSelect('projectPersonnel.project', 'project')
+      .leftJoinAndSelect('projectPersonnel.segments', 'segments')
       .where('personnel.isActive = :isActive', { isActive: true })
       .getMany();
 
     for (const personnel of personnelWithParticipations) {
       // Filter for active participations only
       const activeParticipations = personnel.projectPersonnel
-        .filter(pp => !pp.endDate || pp.endDate > new Date());
+        .filter(pp => !pp.endDate || pp.endDate > new Date())
+        .filter(pp => this.getCurrentParticipationRate(pp) > 0);
       
       // Calculate total participation rate
       const totalParticipationRate = activeParticipations
-        .reduce((sum, pp) => sum + pp.participationRate, 0);
+        .reduce((sum, pp) => sum + this.getCurrentParticipationRate(pp), 0);
       
       // Count PI roles
       const piRoleCount = activeParticipations
@@ -96,7 +128,7 @@ export class ParticipationMonitoringService {
               .map(pp => ({
                 projectId: pp.project.id,
                 projectName: pp.project.name,
-                participationRate: pp.participationRate,
+                participationRate: this.getCurrentParticipationRate(pp),
                 role: pp.role,
               })),
           },
@@ -127,7 +159,7 @@ export class ParticipationMonitoringService {
               .map(pp => ({
                 projectId: pp.project.id,
                 projectName: pp.project.name,
-                participationRate: pp.participationRate,
+                participationRate: this.getCurrentParticipationRate(pp),
                 role: pp.role,
               })),
           },
@@ -158,7 +190,7 @@ export class ParticipationMonitoringService {
               .map(pp => ({
                 projectId: pp.project.id,
                 projectName: pp.project.name,
-                participationRate: pp.participationRate,
+                participationRate: this.getCurrentParticipationRate(pp),
                 role: pp.role,
               })),
           },
@@ -215,6 +247,7 @@ export class ParticipationMonitoringService {
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.projectPersonnel', 'projectPersonnel')
       .leftJoinAndSelect('projectPersonnel.personnel', 'personnel')
+      .leftJoinAndSelect('projectPersonnel.segments', 'segments')
       .where('project.status IN (:...status)', { status: ['APPROVED', 'IN_PROGRESS', 'PLANNING'] })
       .getMany();
 
@@ -228,7 +261,7 @@ export class ParticipationMonitoringService {
           if (!teamAllocations[team]) {
             teamAllocations[team] = 0;
           }
-          teamAllocations[team] += pp.participationRate;
+          teamAllocations[team] += this.getCurrentParticipationRate(pp);
         }
       }
     }
@@ -287,13 +320,14 @@ export class ParticipationMonitoringService {
     const projects = await this.projectRepository
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.projectPersonnel', 'projectPersonnel')
+      .leftJoinAndSelect('projectPersonnel.segments', 'segments')
       .where('project.status IN (:...status)', { status: ['APPROVED', 'IN_PROGRESS'] })
       .getMany();
 
     for (const project of projects) {
       const totalParticipationRate = project.projectPersonnel
         .filter(pp => !pp.endDate || pp.endDate > new Date()) // Only active participations
-        .reduce((sum, pp) => sum + pp.participationRate, 0);
+        .reduce((sum, pp) => sum + this.getCurrentParticipationRate(pp), 0);
 
       if (totalParticipationRate >= threshold) {
         const alert: ParticipationAlert = {
@@ -354,6 +388,7 @@ export class ParticipationMonitoringService {
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.projectPersonnel', 'projectPersonnel')
       .leftJoinAndSelect('projectPersonnel.personnel', 'personnel')
+      .leftJoinAndSelect('projectPersonnel.segments', 'segments')
       .where('project.status IN (:...status)', { status: ['APPROVED', 'IN_PROGRESS', 'PLANNING'] })
       .getMany();
 
@@ -367,7 +402,7 @@ export class ParticipationMonitoringService {
           if (!teamAllocations[team]) {
             teamAllocations[team] = 0;
           }
-          teamAllocations[team] += pp.participationRate;
+          teamAllocations[team] += this.getCurrentParticipationRate(pp);
         }
       }
     }
@@ -419,15 +454,17 @@ export class ParticipationMonitoringService {
       .createQueryBuilder('personnel')
       .leftJoinAndSelect('personnel.projectPersonnel', 'projectPersonnel')
       .leftJoinAndSelect('projectPersonnel.project', 'project')
+      .leftJoinAndSelect('projectPersonnel.segments', 'segments')
       .where('personnel.isActive = :isActive', { isActive: true })
       .getMany();
 
     return personnelWithParticipations.map(personnel => {
       const activeParticipations = personnel.projectPersonnel
-        .filter(pp => !pp.endDate || pp.endDate > new Date());
+        .filter(pp => !pp.endDate || pp.endDate > new Date())
+        .filter(pp => this.getCurrentParticipationRate(pp) > 0);
 
       const totalParticipationRate = activeParticipations
-        .reduce((sum, pp) => sum + pp.participationRate, 0);
+        .reduce((sum, pp) => sum + this.getCurrentParticipationRate(pp), 0);
 
       const piRoleCount = activeParticipations
         .filter(pp => pp.role === ProjectPersonnelRole.PRINCIPAL_INVESTIGATOR)
@@ -454,7 +491,7 @@ export class ParticipationMonitoringService {
           projectPersonnelId: pp.id,
           projectId: pp.project.id,
           projectName: pp.project.name,
-          participationRate: pp.participationRate,
+          participationRate: this.getCurrentParticipationRate(pp),
           role: pp.role,
           startDate: pp.startDate,
           endDate: pp.endDate,
@@ -471,6 +508,7 @@ export class ParticipationMonitoringService {
       .createQueryBuilder('personnel')
       .leftJoinAndSelect('personnel.projectPersonnel', 'projectPersonnel')
       .leftJoinAndSelect('projectPersonnel.project', 'project')
+      .leftJoinAndSelect('projectPersonnel.segments', 'segments')
       .where('personnel.id = :id', { id })
       .getOne();
 
@@ -479,10 +517,11 @@ export class ParticipationMonitoringService {
     }
 
     const activeParticipations = personnel.projectPersonnel
-      .filter(pp => !pp.endDate || pp.endDate > new Date());
+      .filter(pp => !pp.endDate || pp.endDate > new Date())
+      .filter(pp => this.getCurrentParticipationRate(pp) > 0);
 
     const totalParticipationRate = activeParticipations
-      .reduce((sum, pp) => sum + pp.participationRate, 0);
+      .reduce((sum, pp) => sum + this.getCurrentParticipationRate(pp), 0);
 
     const piRoleCount = activeParticipations
       .filter(pp => pp.role === ProjectPersonnelRole.PRINCIPAL_INVESTIGATOR)
@@ -512,7 +551,7 @@ export class ParticipationMonitoringService {
         projectPersonnelId: pp.id,
         projectId: pp.project.id,
         projectName: pp.project.name,
-        participationRate: pp.participationRate,
+        participationRate: this.getCurrentParticipationRate(pp),
         role: pp.role,
         startDate: pp.startDate,
         endDate: pp.endDate,

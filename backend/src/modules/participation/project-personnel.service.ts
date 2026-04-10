@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindManyOptions } from 'typeorm';
 import { ProjectPersonnel } from './project-personnel.entity';
+import { ProjectPersonnelSegment } from './project-personnel-segment.entity';
 import { ProjectPersonnelRole } from './project-personnel-role.enum';
 import { Project } from '../projects/project.entity';
 import { Personnel } from '../personnel/personnel.entity';
@@ -15,6 +16,8 @@ export class ProjectPersonnelService {
   constructor(
     @InjectRepository(ProjectPersonnel)
     private projectPersonnelRepository: Repository<ProjectPersonnel>,
+    @InjectRepository(ProjectPersonnelSegment)
+    private projectPersonnelSegmentRepository: Repository<ProjectPersonnelSegment>,
     @InjectRepository(Project)
     private projectRepository: Repository<Project>,
     @InjectRepository(Personnel)
@@ -22,6 +25,156 @@ export class ProjectPersonnelService {
     private participationCalculationService: ParticipationCalculationService,
     private auditService: AuditService,
   ) {}
+
+  private addMonths(date: Date, months: number): Date {
+    const next = new Date(date);
+    next.setUTCMonth(next.getUTCMonth() + months);
+    return next;
+  }
+
+  private deriveEndDate(startDate: Date, participationMonths?: number, explicitEndDate?: string | Date): Date {
+    if (explicitEndDate) return new Date(explicitEndDate);
+    if (!participationMonths || participationMonths <= 1) return new Date(startDate);
+    const next = this.addMonths(startDate, participationMonths);
+    next.setUTCDate(next.getUTCDate() - 1);
+    return next;
+  }
+
+  private countInclusiveMonths(startDate: Date, endDate: Date): number {
+    return (
+      (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12 +
+      (endDate.getUTCMonth() - startDate.getUTCMonth()) +
+      1
+    );
+  }
+
+  private validateSegments(segments: ProjectPersonnelSegment[]): void {
+    const ordered = [...segments].sort(
+      (left, right) => new Date(left.startDate).getTime() - new Date(right.startDate).getTime(),
+    );
+
+    ordered.forEach((segment) => {
+      this.participationCalculationService.validateParticipationRate(Number(segment.participationRate));
+      if (new Date(segment.startDate) > new Date(segment.endDate)) {
+        throw new BadRequestException('참여 구간의 시작일은 종료일보다 늦을 수 없습니다.');
+      }
+    });
+
+    for (let i = 1; i < ordered.length; i += 1) {
+      const prevEnd = new Date(ordered[i - 1].endDate);
+      const currentStart = new Date(ordered[i].startDate);
+      if (currentStart <= prevEnd) {
+        throw new BadRequestException('동일 참여자의 참여 구간 기간이 서로 겹칠 수 없습니다.');
+      }
+    }
+  }
+
+  private buildSegmentsFromLegacy(
+    projectPersonnel: ProjectPersonnel,
+    payload: {
+      startDate: string | Date;
+      endDate?: string | Date;
+      participationRate: number;
+      participationMonths?: number;
+      personnelCostOverride?: number | null;
+    },
+  ): ProjectPersonnelSegment[] {
+    const startDate = new Date(payload.startDate);
+    const endDate = this.deriveEndDate(startDate, payload.participationMonths, payload.endDate);
+
+    return [
+      this.projectPersonnelSegmentRepository.create({
+        projectPersonnel,
+        startDate,
+        endDate,
+        participationRate: payload.participationRate,
+        personnelCostOverride: payload.personnelCostOverride ?? null,
+        sortOrder: 0,
+        notes: null,
+      }),
+    ];
+  }
+
+  private buildSegments(
+    projectPersonnel: ProjectPersonnel,
+    createProjectPersonnelDto: CreateProjectPersonnelDto | UpdateProjectPersonnelDto,
+    fallback: {
+      startDate: string | Date;
+      endDate?: string | Date | null;
+      participationRate: number;
+      participationMonths?: number;
+      personnelCostOverride?: number | null;
+    },
+  ): ProjectPersonnelSegment[] {
+    if (!createProjectPersonnelDto.segments || createProjectPersonnelDto.segments.length === 0) {
+      return this.buildSegmentsFromLegacy(projectPersonnel, {
+        ...fallback,
+        endDate: fallback.endDate ?? undefined,
+      });
+    }
+
+    return createProjectPersonnelDto.segments.map((segment, index) =>
+      this.projectPersonnelSegmentRepository.create({
+        projectPersonnel,
+        startDate: new Date(segment.startDate),
+        endDate: new Date(segment.endDate),
+        participationRate: Number(segment.participationRate),
+        personnelCostOverride:
+          segment.personnelCostOverride === undefined || segment.personnelCostOverride === null
+            ? null
+            : Number(segment.personnelCostOverride),
+        sortOrder: segment.sortOrder ?? index,
+        notes: segment.notes ?? null,
+      }),
+    );
+  }
+
+  private applyLegacyFieldsFromSegments(
+    projectPersonnel: ProjectPersonnel,
+    segments: ProjectPersonnelSegment[],
+  ): ProjectPersonnel {
+    if (!segments.length) {
+      projectPersonnel.participationRate = 0;
+      projectPersonnel.participationMonths = 0;
+      projectPersonnel.startDate = new Date();
+      projectPersonnel.endDate = null;
+      return projectPersonnel;
+    }
+
+    const ordered = [...segments].sort(
+      (left, right) => new Date(left.startDate).getTime() - new Date(right.startDate).getTime(),
+    );
+    const now = new Date();
+    const currentSegment = ordered.find((segment) => {
+      const startDate = new Date(segment.startDate);
+      const endDate = new Date(segment.endDate);
+      return startDate <= now && endDate >= now;
+    });
+
+    projectPersonnel.startDate = new Date(ordered[0].startDate);
+    projectPersonnel.endDate = new Date(ordered[ordered.length - 1].endDate);
+    projectPersonnel.participationMonths = ordered.reduce((sum, segment) => {
+      return sum + this.countInclusiveMonths(new Date(segment.startDate), new Date(segment.endDate));
+    }, 0);
+    projectPersonnel.participationRate = Number(currentSegment?.participationRate ?? 0);
+    projectPersonnel.personnelCostOverride = ordered.reduce<number | null>((sum, segment) => {
+      if (segment.personnelCostOverride === null || segment.personnelCostOverride === undefined) {
+        return sum;
+      }
+      return (sum ?? 0) + Number(segment.personnelCostOverride);
+    }, null);
+
+    return projectPersonnel;
+  }
+
+  private async replaceSegments(
+    projectPersonnel: ProjectPersonnel,
+    segments: ProjectPersonnelSegment[],
+  ): Promise<ProjectPersonnelSegment[]> {
+    this.validateSegments(segments);
+    await this.projectPersonnelSegmentRepository.delete({ projectPersonnel: { id: projectPersonnel.id } as any });
+    return await this.projectPersonnelSegmentRepository.save(segments);
+  }
 
   private async validateRoleLimits(
     personnelId: string,
@@ -98,7 +251,7 @@ export class ProjectPersonnelService {
       createProjectPersonnelDto.participationRate
     );
 
-    const projectPersonnel = this.projectPersonnelRepository.create({
+    let projectPersonnel = this.projectPersonnelRepository.create({
       ...createProjectPersonnelDto,
       project,
       personnel,
@@ -107,6 +260,19 @@ export class ProjectPersonnelService {
       personnelCostOverride: createProjectPersonnelDto.personnelCostOverride ?? null,
     });
 
+    projectPersonnel = await this.projectPersonnelRepository.save(projectPersonnel);
+
+    const segments = this.buildSegments(projectPersonnel, createProjectPersonnelDto, {
+      startDate: createProjectPersonnelDto.startDate,
+      endDate: createProjectPersonnelDto.endDate,
+      participationRate: createProjectPersonnelDto.participationRate,
+      participationMonths: createProjectPersonnelDto.participationMonths,
+      personnelCostOverride: createProjectPersonnelDto.personnelCostOverride,
+    });
+    const savedSegments = await this.replaceSegments(projectPersonnel, segments);
+
+    projectPersonnel.segments = savedSegments;
+    projectPersonnel = this.applyLegacyFieldsFromSegments(projectPersonnel, savedSegments);
     const savedProjectPersonnel = await this.projectPersonnelRepository.save(projectPersonnel);
 
     await this.auditService.logChange(
@@ -125,10 +291,28 @@ export class ProjectPersonnelService {
   }
 
   async findAll(options: FindManyOptions<ProjectPersonnel> = {}): Promise<ProjectPersonnel[]> {
-    return await this.projectPersonnelRepository.find({
+    const projectPersonnels = await this.projectPersonnelRepository.find({
       relations: ['project', 'personnel'],
       ...options,
     });
+
+    for (const projectPersonnel of projectPersonnels) {
+      const segments = await this.projectPersonnelSegmentRepository.find({
+        where: { projectPersonnel: { id: projectPersonnel.id } as any },
+        order: { sortOrder: 'ASC', startDate: 'ASC' },
+      });
+      projectPersonnel.segments = segments.length
+        ? segments
+        : this.buildSegmentsFromLegacy(projectPersonnel, {
+            startDate: projectPersonnel.startDate,
+            endDate: projectPersonnel.endDate ?? undefined,
+            participationRate: Number(projectPersonnel.participationRate),
+            participationMonths: projectPersonnel.participationMonths,
+            personnelCostOverride: projectPersonnel.personnelCostOverride,
+          });
+    }
+
+    return projectPersonnels;
   }
 
   async findOne(id: string): Promise<ProjectPersonnel> {
@@ -139,6 +323,21 @@ export class ProjectPersonnelService {
     if (!projectPersonnel) {
       throw new NotFoundException(`ProjectPersonnel with ID ${id} not found`);
     }
+
+    const segments = await this.projectPersonnelSegmentRepository.find({
+      where: { projectPersonnel: { id } as any },
+      order: { sortOrder: 'ASC', startDate: 'ASC' },
+    });
+    projectPersonnel.segments = segments.length
+      ? segments
+      : this.buildSegmentsFromLegacy(projectPersonnel, {
+          startDate: projectPersonnel.startDate,
+          endDate: projectPersonnel.endDate ?? undefined,
+          participationRate: Number(projectPersonnel.participationRate),
+          participationMonths: projectPersonnel.participationMonths,
+          personnelCostOverride: projectPersonnel.personnelCostOverride,
+        });
+
     return projectPersonnel;
   }
 
@@ -160,6 +359,54 @@ export class ProjectPersonnelService {
     }
 
     Object.assign(projectPersonnel, updateData);
+
+    if (updateData.segments !== undefined) {
+      const nextSegments = this.buildSegments(projectPersonnel, updateData, {
+        startDate: updateData.startDate || projectPersonnel.startDate,
+        endDate: updateData.endDate || projectPersonnel.endDate || undefined,
+        participationRate:
+          updateData.participationRate !== undefined
+            ? updateData.participationRate
+            : Number(projectPersonnel.participationRate),
+        participationMonths:
+          updateData.participationMonths !== undefined
+            ? updateData.participationMonths
+            : projectPersonnel.participationMonths,
+        personnelCostOverride:
+          updateData.personnelCostOverride !== undefined
+            ? updateData.personnelCostOverride
+            : projectPersonnel.personnelCostOverride,
+      });
+      const savedSegments = await this.replaceSegments(projectPersonnel, nextSegments);
+      projectPersonnel.segments = savedSegments;
+      this.applyLegacyFieldsFromSegments(projectPersonnel, savedSegments);
+    } else if ((projectPersonnel.segments?.length || 0) <= 1 && (
+      updateData.startDate !== undefined ||
+      updateData.endDate !== undefined ||
+      updateData.participationRate !== undefined ||
+      updateData.participationMonths !== undefined ||
+      updateData.personnelCostOverride !== undefined
+    )) {
+      const nextSegments = this.buildSegmentsFromLegacy(projectPersonnel, {
+        startDate: updateData.startDate || projectPersonnel.startDate,
+        endDate: updateData.endDate || projectPersonnel.endDate || undefined,
+        participationRate:
+          updateData.participationRate !== undefined
+            ? updateData.participationRate
+            : Number(projectPersonnel.participationRate),
+        participationMonths:
+          updateData.participationMonths !== undefined
+            ? updateData.participationMonths
+            : projectPersonnel.participationMonths,
+        personnelCostOverride:
+          updateData.personnelCostOverride !== undefined
+            ? updateData.personnelCostOverride
+            : projectPersonnel.personnelCostOverride,
+      });
+      const savedSegments = await this.replaceSegments(projectPersonnel, nextSegments);
+      projectPersonnel.segments = savedSegments;
+      this.applyLegacyFieldsFromSegments(projectPersonnel, savedSegments);
+    }
     
     projectPersonnel.version += 1;
     
