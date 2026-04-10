@@ -1,9 +1,8 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
     container_name: rate-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: rate_db
       POSTGRES_USER: rate_user
@@ -23,6 +22,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: rate-backend
+    restart: unless-stopped
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -32,12 +32,12 @@ services:
       JWT_SECRET: rate-jwt-secret-key-2024
       PORT: 3000
     ports:
-      - "3000:3000"
+      - "3030:3000"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -47,10 +47,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: rate-frontend
-    environment:
-      REACT_APP_API_URL: http://localhost:3000
+    restart: unless-stopped
     ports:
-      - "3001:80"
+      - "3033:80"
     depends_on:
       - backend
 
