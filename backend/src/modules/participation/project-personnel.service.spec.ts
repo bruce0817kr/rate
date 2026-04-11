@@ -30,7 +30,7 @@ describe('ProjectPersonnelService', () => {
     name: 'Test User',
     team: '연구팀',
     position: '팀장',
-    salaryBand: '5000-6000',
+    positionAverageAnnualSalary: 55000000,
     isActive: true,
   };
 
@@ -48,7 +48,7 @@ describe('ProjectPersonnelService', () => {
   const mockParticipationCalculationService = {
     validateParticipationRate: jest.fn(),
     calculateMonthlyCost: jest.fn(),
-    getSalaryBandMidpoint: jest.fn(),
+    getApplicableAnnualSalary: jest.fn(),
   };
 
   const mockAuditService = {
@@ -119,7 +119,10 @@ describe('ProjectPersonnelService', () => {
 
       const result = await service.findOne('pp-1');
 
-      expect(result).toEqual(mockProjectPersonnel);
+      expect(result).toMatchObject({
+        ...mockProjectPersonnel,
+        actualAnnualSalaryOverride: null,
+      });
       expect(projectPersonnelRepository.findOne).toHaveBeenCalledWith({
         where: { id: 'pp-1' },
         relations: ['project', 'personnel'],
@@ -238,7 +241,7 @@ describe('ProjectPersonnelService', () => {
         expenseCode: 'EXP001',
         legalBasisCode: 'LEGAL001',
         participatingTeam: '연구팀',
-        annualSalary: 72000000,
+        actualAnnualSalaryOverride: 72000000,
         segments: [
           {
             startDate: '2026-01-01',
@@ -253,7 +256,7 @@ describe('ProjectPersonnelService', () => {
             sortOrder: 1,
           },
         ],
-      } as any);
+      } as any, { role: 'ADMIN', canManageActualSalary: true } as any);
 
       expect(projectPersonnelSegmentRepository.save).toHaveBeenCalled();
       expect(result.participationRate).toBe(80);

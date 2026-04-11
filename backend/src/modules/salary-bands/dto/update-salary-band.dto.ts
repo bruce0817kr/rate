@@ -8,15 +8,9 @@ export class UpdateSalaryBandDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  minAmount?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  maxAmount?: number;
+  averageAnnualSalary?: number;
 
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }
-

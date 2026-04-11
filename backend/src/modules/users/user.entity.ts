@@ -25,6 +25,9 @@ export class User {
   @Column({ type: 'enum', enum: UserRole, default: UserRole.GENERAL })
   role: UserRole;
 
+  @Column({ default: false })
+  canManageActualSalary: boolean;
+
   @Column({ default: true })
   isActive: boolean;
 

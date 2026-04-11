@@ -56,7 +56,7 @@ export class ProjectPersonnel {
   role: ProjectPersonnelRole;
 
   @Column('decimal', { precision: 15, scale: 2, nullable: true })
-  annualSalary: number | null; // Actual annual salary (KRW), optional override from salary band
+  actualAnnualSalaryOverride: number | null; // Actual annual salary (KRW), project-level override
 
   @Column({ type: 'int', default: 12 })
   participationMonths: number; // Number of months participating in this project

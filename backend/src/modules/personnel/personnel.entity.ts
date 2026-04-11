@@ -41,8 +41,11 @@ export class Personnel {
   @Column()
   position: string;
 
-  @Column()
-  salaryBand: string; // e.g., "3000-4000", "4000-5000" (in 10,000 KRW units)
+  @Column({ type: 'varchar', nullable: true })
+  salaryReferencePosition: string | null;
+
+  @Column('bigint', { nullable: true })
+  positionAverageAnnualSalary: number | null;
 
   @Column({
     type: 'enum',

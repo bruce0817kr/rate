@@ -58,6 +58,7 @@ export class AuthService {
       username: user.username,
       name: user.name,
       role: user.role,
+      canManageActualSalary: user.canManageActualSalary === true,
     };
 
     const response = {
@@ -69,6 +70,7 @@ export class AuthService {
         username: user.username,
         name: user.name,
         role: user.role,
+        canManageActualSalary: user.canManageActualSalary === true,
       },
     };
 

@@ -16,35 +16,39 @@ describe('ParticipationCalculationService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should calculate midpoint of salary band correctly', () => {
-    expect(service['getSalaryBandMidpoint']('3000-4000')).toBe(3500);
-    expect(service['getSalaryBandMidpoint']('4000-5000')).toBe(4500);
-    expect(service['getSalaryBandMidpoint']('2000-3000')).toBe(2500);
+  it('should return applicable annual salary using override first', () => {
+    expect(
+      service.getApplicableAnnualSalary(
+        { positionAverageAnnualSalary: 61000000 } as any,
+        { actualAnnualSalaryOverride: 72000000 } as any,
+      ),
+    ).toBe(72000000);
   });
 
-  it('should throw error for invalid salary band format', () => {
-    expect(() => service['getSalaryBandMidpoint']('invalid')).toThrow();
-    expect(() => service['getSalaryBandMidpoint']('3000')).toThrow();
-    expect(() => service['getSalaryBandMidpoint']('3000-4000-5000')).toThrow();
+  it('should fall back to position average annual salary', () => {
+    expect(
+      service.getApplicableAnnualSalary(
+        { positionAverageAnnualSalary: 61000000 } as any,
+        { actualAnnualSalaryOverride: null } as any,
+      ),
+    ).toBe(61000000);
   });
 
   it('should calculate monthly cost correctly', () => {
     const mockPersonnel = {
-      salaryBand: '4000-5000', // midpoint 4500
+      positionAverageAnnualSalary: 54000000,
     } as any;
 
     const mockProjectPersonnel = {
-      participationRate: 50, // 50%
+      participationRate: 50,
+      actualAnnualSalaryOverride: null,
     } as any;
 
-    // 4500 * (50/100) * 1 = 2250
-    expect(service.calculateMonthlyCost(mockPersonnel, mockProjectPersonnel, 1)).toBe(2250);
+    expect(service.calculateMonthlyCost(mockPersonnel, mockProjectPersonnel, 1)).toBe(2250000);
     
-    // 4500 * (50/100) * 2 = 4500
-    expect(service.calculateMonthlyCost(mockPersonnel, mockProjectPersonnel, 2)).toBe(4500);
+    expect(service.calculateMonthlyCost(mockPersonnel, mockProjectPersonnel, 2)).toBe(4500000);
     
-    // 4500 * (100/100) * 1 = 4500
-    expect(service.calculateMonthlyCost(mockPersonnel, {...mockProjectPersonnel, participationRate: 100}, 1)).toBe(4500);
+    expect(service.calculateMonthlyCost(mockPersonnel, {...mockProjectPersonnel, participationRate: 100}, 1)).toBe(4500000);
   });
 
   it('should validate participation rate within bounds', () => {

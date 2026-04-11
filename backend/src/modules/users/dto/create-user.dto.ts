@@ -1,4 +1,4 @@
-import { IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
@@ -14,16 +14,32 @@ export class CreateUserDto {
 
   @IsString()
   role: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canManageActualSalary?: boolean;
 }
 
 export class UpdateUserDto {
+  @IsOptional()
   @IsString()
   name?: string;
 
+  @IsOptional()
   @IsString()
   role?: string;
 
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canManageActualSalary?: boolean;
 }
 
 export class UpdateMyProfileDto {

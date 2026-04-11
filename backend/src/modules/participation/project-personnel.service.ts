@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindManyOptions } from 'typeorm';
 import { ProjectPersonnel } from './project-personnel.entity';
@@ -6,6 +6,7 @@ import { ProjectPersonnelSegment } from './project-personnel-segment.entity';
 import { ProjectPersonnelRole } from './project-personnel-role.enum';
 import { Project } from '../projects/project.entity';
 import { Personnel } from '../personnel/personnel.entity';
+import { UserRole } from '../users/user.entity';
 import { CreateProjectPersonnelDto } from './dto/create-project-personnel.dto';
 import { UpdateProjectPersonnelDto } from './dto/update-project-personnel.dto';
 import { ParticipationCalculationService } from './participation-calculation.service';
@@ -25,6 +26,28 @@ export class ProjectPersonnelService {
     private participationCalculationService: ParticipationCalculationService,
     private auditService: AuditService,
   ) {}
+
+  private canManageActualSalary(viewer?: { role?: UserRole; canManageActualSalary?: boolean } | null): boolean {
+    return !!viewer && (viewer.role === UserRole.ADMIN || viewer.canManageActualSalary === true);
+  }
+
+  private maskActualSalaryOverride<T extends ProjectPersonnel>(projectPersonnel: T, viewer?: { role?: UserRole; canManageActualSalary?: boolean } | null): T {
+    if (this.canManageActualSalary(viewer)) {
+      return projectPersonnel;
+    }
+
+    return {
+      ...projectPersonnel,
+      actualAnnualSalaryOverride: null,
+    };
+  }
+
+  private maskActualSalaryOverrides(
+    projectPersonnels: ProjectPersonnel[],
+    viewer?: { role?: UserRole; canManageActualSalary?: boolean } | null,
+  ): ProjectPersonnel[] {
+    return projectPersonnels.map((item) => this.maskActualSalaryOverride(item, viewer));
+  }
 
   private addMonths(date: Date, months: number): Date {
     const next = new Date(date);
@@ -217,7 +240,17 @@ export class ProjectPersonnelService {
     }
   }
 
-  async createProjectPersonnel(createProjectPersonnelDto: CreateProjectPersonnelDto): Promise<ProjectPersonnel> {
+  async createProjectPersonnel(
+    createProjectPersonnelDto: CreateProjectPersonnelDto,
+    viewer?: { role?: UserRole; canManageActualSalary?: boolean } | null,
+  ): Promise<ProjectPersonnel> {
+    if (
+      createProjectPersonnelDto.actualAnnualSalaryOverride !== undefined &&
+      !this.canManageActualSalary(viewer)
+    ) {
+      throw new ForbiddenException('Actual annual salary override is not allowed for this user');
+    }
+
     const project = await this.projectRepository.findOne({
       where: { id: createProjectPersonnelDto.projectId },
     });
@@ -256,7 +289,7 @@ export class ProjectPersonnelService {
       project,
       personnel,
       participationMonths: createProjectPersonnelDto.participationMonths ?? 12,
-      annualSalary: createProjectPersonnelDto.annualSalary ?? null,
+      actualAnnualSalaryOverride: createProjectPersonnelDto.actualAnnualSalaryOverride ?? null,
       personnelCostOverride: createProjectPersonnelDto.personnelCostOverride ?? null,
     });
 
@@ -287,10 +320,13 @@ export class ProjectPersonnelService {
       'SYSTEM',
     );
 
-    return savedProjectPersonnel;
+    return this.maskActualSalaryOverride(savedProjectPersonnel, viewer);
   }
 
-  async findAll(options: FindManyOptions<ProjectPersonnel> = {}): Promise<ProjectPersonnel[]> {
+  async findAll(
+    options: FindManyOptions<ProjectPersonnel> = {},
+    viewer?: { role?: UserRole; canManageActualSalary?: boolean } | null,
+  ): Promise<ProjectPersonnel[]> {
     const projectPersonnels = await this.projectPersonnelRepository.find({
       relations: ['project', 'personnel'],
       ...options,
@@ -312,10 +348,13 @@ export class ProjectPersonnelService {
           });
     }
 
-    return projectPersonnels;
+    return this.maskActualSalaryOverrides(projectPersonnels, viewer);
   }
 
-  async findOne(id: string): Promise<ProjectPersonnel> {
+  async findOne(
+    id: string,
+    viewer?: { role?: UserRole; canManageActualSalary?: boolean } | null,
+  ): Promise<ProjectPersonnel> {
     const projectPersonnel = await this.projectPersonnelRepository.findOne({
       where: { id },
       relations: ['project', 'personnel'],
@@ -338,11 +377,22 @@ export class ProjectPersonnelService {
           personnelCostOverride: projectPersonnel.personnelCostOverride,
         });
 
-    return projectPersonnel;
+    return this.maskActualSalaryOverride(projectPersonnel, viewer);
   }
 
-  async update(id: string, updateData: UpdateProjectPersonnelDto): Promise<ProjectPersonnel> {
-    const projectPersonnel = await this.findOne(id);
+  async update(
+    id: string,
+    updateData: UpdateProjectPersonnelDto,
+    viewer?: { role?: UserRole; canManageActualSalary?: boolean } | null,
+  ): Promise<ProjectPersonnel> {
+    const projectPersonnel = await this.findOne(id, viewer && this.canManageActualSalary(viewer) ? viewer : { role: UserRole.ADMIN, canManageActualSalary: true });
+
+    if (
+      updateData.actualAnnualSalaryOverride !== undefined &&
+      !this.canManageActualSalary(viewer)
+    ) {
+      throw new ForbiddenException('Actual annual salary override is not allowed for this user');
+    }
     
     if (updateData.participationRate !== undefined) {
       this.participationCalculationService.validateParticipationRate(updateData.participationRate);
@@ -422,7 +472,7 @@ export class ProjectPersonnelService {
       'SYSTEM',
     );
 
-    return updated;
+    return this.maskActualSalaryOverride(updated, viewer);
   }
 
   async remove(id: string): Promise<void> {
@@ -475,8 +525,9 @@ export class ProjectPersonnelService {
       fiscalYear,
       fiscalMonth,
       calculationDate: new Date(),
-      baseSalary: this.participationCalculationService.getSalaryBandMidpoint(
-        projectPersonnel.personnel.salaryBand
+      baseSalary: this.participationCalculationService.getApplicableAnnualSalary(
+        projectPersonnel.personnel,
+        projectPersonnel,
       ),
       appliedParticipationRate: projectPersonnel.participationRate,
       calculatedAmount: monthlyCost,

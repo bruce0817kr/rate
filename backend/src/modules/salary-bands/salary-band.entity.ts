@@ -8,11 +8,8 @@ export class SalaryBand {
   @Column({ unique: true })
   position: string;
 
-  @Column('int')
-  minAmount: number;
-
-  @Column('int')
-  maxAmount: number;
+  @Column('bigint')
+  averageAnnualSalary: number;
 
   @Column({ default: true })
   isActive: boolean;
@@ -23,4 +20,3 @@ export class SalaryBand {
   @UpdateDateColumn()
   updatedAt: Date;
 }
-

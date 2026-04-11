@@ -10,7 +10,7 @@ describe('Personnel Entity', () => {
     personnel.department = 'Development';
     personnel.team = 'Backend Team';
     personnel.position = 'Senior Developer';
-    personnel.salaryBand = '4000-5000';
+    personnel.positionAverageAnnualSalary = 45000000;
     personnel.employmentType = 'FULL_TIME';
     personnel.hireDate = new Date('2023-01-01');
     personnel.isActive = true;
@@ -22,7 +22,7 @@ describe('Personnel Entity', () => {
     expect(personnel.id).toBe('test-id');
     expect(personnel.employeeId).toBe('EMP001');
     expect(personnel.name).toBe('John Doe');
-    expect(personnel.salaryBand).toBe('4000-5000');
+    expect(personnel.positionAverageAnnualSalary).toBe(45000000);
     expect(personnel.employmentType).toBe('FULL_TIME');
     expect(personnel.isActive).toBe(true);
   });

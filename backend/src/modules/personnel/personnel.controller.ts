@@ -104,7 +104,7 @@ export class PersonnelController {
                 department: row.department,
                 team: row.team,
                 position: row.position,
-                salaryBand: row.salaryBand,
+                positionAverageAnnualSalary: row.positionAverageAnnualSalary ? Number(row.positionAverageAnnualSalary) : undefined,
                 employmentType: row.employmentType as PersonnelEmploymentType,
                 hireDate: row.hireDate,
                 terminationDate: row.terminationDate || null,

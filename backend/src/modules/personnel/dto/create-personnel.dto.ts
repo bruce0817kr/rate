@@ -45,9 +45,12 @@ export class CreatePersonnelDto {
   @IsNotEmpty()
   position: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  salaryBand: string; // e.g., "3000-4000"
+  salaryReferencePosition?: string;
+
+  @IsOptional()
+  positionAverageAnnualSalary?: number;
 
   @IsEnum(['FULL_TIME', 'CONTRACT', 'PART_TIME', 'DISPATCHED'])
   employmentType: string;

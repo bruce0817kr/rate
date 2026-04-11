@@ -1,5 +1,5 @@
-employeeId,name,ssn,department,team,position,salaryBand,employmentType,hireDate,terminationDate,isActive
-EMP001,John Doe,123-45-6789,Development,Backend Team,Senior Developer,4000-5000,FULL_TIME,2023-01-15,,true
-EMP002,Jane Smith,987-65-4321,Marketing,Content Team,Marketing Manager,3500-4500,FULL_TIME,2022-03-22,,true
-EMP003,Bob Johnson,555-55-5555,HR,HR Team,HR Specialist,3000-4000,CONTRACT,2023-06-01,2023-12-31,true
-EMP004,Alice Lee,111-22-3333,Finance,Finance Team,Accountant,4500-5500,PART_TIME,2021-11-01,,false
+employeeId,name,ssn,department,team,position,positionAverageAnnualSalary,employmentType,hireDate,terminationDate,isActive
+EMP001,John Doe,123-45-6789,Development,Backend Team,Senior Developer,45000000,FULL_TIME,2023-01-15,,true
+EMP002,Jane Smith,987-65-4321,Marketing,Content Team,Marketing Manager,40000000,FULL_TIME,2022-03-22,,true
+EMP003,Bob Johnson,555-55-5555,HR,HR Team,HR Specialist,35000000,CONTRACT,2023-06-01,2023-12-31,true
+EMP004,Alice Lee,111-22-3333,Finance,Finance Team,Accountant,50000000,PART_TIME,2021-11-01,,false

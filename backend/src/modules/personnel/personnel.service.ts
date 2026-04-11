@@ -3,13 +3,48 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindManyOptions } from 'typeorm';
 import { Personnel } from './personnel.entity';
 import { CreatePersonnelDto } from './dto/create-personnel.dto';
+import { SalaryBand } from '../salary-bands/salary-band.entity';
 
 @Injectable()
 export class PersonnelService {
   constructor(
     @InjectRepository(Personnel)
     private personnelRepository: Repository<Personnel>,
+    @InjectRepository(SalaryBand)
+    private salaryBandRepository: Repository<SalaryBand>,
   ) {}
+
+  private getDefaultSalaryReferencePosition(position: string): string | null {
+    const normalized = position.trim();
+    if (normalized === '본부장' || normalized === '수석부장') {
+      return '부장';
+    }
+    if (normalized === '팀장') {
+      return null;
+    }
+    return normalized;
+  }
+
+  private async resolvePositionAverageAnnualSalary(
+    position: string,
+    salaryReferencePosition?: string | null,
+    explicitValue?: number | null,
+  ): Promise<number | null> {
+    if (explicitValue !== undefined && explicitValue !== null) {
+      return explicitValue;
+    }
+
+    const referencePosition = salaryReferencePosition?.trim() || this.getDefaultSalaryReferencePosition(position);
+    if (!referencePosition) {
+      return null;
+    }
+
+    const positionSetting = await this.salaryBandRepository.findOne({
+      where: { position: referencePosition, isActive: true },
+    });
+
+    return positionSetting ? Number(positionSetting.averageAnnualSalary) : null;
+  }
 
   async createPersonnel(createPersonnelDto: CreatePersonnelDto): Promise<Personnel> {
     // Check if employeeId already exists
@@ -32,6 +67,14 @@ export class PersonnelService {
       // SSN will be encrypted in a real implementation
       // For now, we'll store as-is (in production, use proper encryption)
       ssn: createPersonnelDto.ssn,
+      salaryReferencePosition:
+        createPersonnelDto.salaryReferencePosition?.trim() ||
+        this.getDefaultSalaryReferencePosition(createPersonnelDto.position),
+      positionAverageAnnualSalary: await this.resolvePositionAverageAnnualSalary(
+        createPersonnelDto.position,
+        createPersonnelDto.salaryReferencePosition,
+        createPersonnelDto.positionAverageAnnualSalary,
+      ),
       // Set default salary validity period
       salaryValidity: {
         startDate: new Date(createPersonnelDto.hireDate),
@@ -68,6 +111,19 @@ export class PersonnelService {
     
     // Merge update data
     Object.assign(personnel, updateData);
+
+    if (updateData.position !== undefined || updateData.salaryReferencePosition !== undefined || updateData.positionAverageAnnualSalary !== undefined) {
+      const nextReferencePosition =
+        updateData.salaryReferencePosition !== undefined
+          ? (updateData.salaryReferencePosition?.trim() || null)
+          : (personnel.salaryReferencePosition ?? this.getDefaultSalaryReferencePosition(updateData.position || personnel.position));
+      personnel.salaryReferencePosition = nextReferencePosition;
+      personnel.positionAverageAnnualSalary = await this.resolvePositionAverageAnnualSalary(
+        updateData.position || personnel.position,
+        nextReferencePosition,
+        updateData.positionAverageAnnualSalary,
+      );
+    }
     
     // If hireDate is updated, adjust salary validity start date
     if (updateData.hireDate) {

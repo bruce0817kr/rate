@@ -13,7 +13,6 @@ export class SalaryBandsController {
   constructor(private readonly salaryBandsService: SalaryBandsService) {}
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.STRATEGY_PLANNING, UserRole.HR_GENERAL_AFFAIRS)
   async findAll() {
     return this.salaryBandsService.findAll();
   }
@@ -37,4 +36,3 @@ export class SalaryBandsController {
     return { message: 'deleted' };
   }
 }
-

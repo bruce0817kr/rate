@@ -29,6 +29,8 @@ export class UsersService {
       passwordHash,
       name: createUserDto.name,
       role: createUserDto.role as UserRole,
+      isActive: createUserDto.isActive ?? true,
+      canManageActualSalary: createUserDto.canManageActualSalary ?? false,
     });
 
     return this.usersRepository.save(user);
@@ -57,6 +59,7 @@ export class UsersService {
       passwordHash,
       name: localPart,
       role: UserRole.GENERAL,
+      canManageActualSalary: false,
       isActive: true,
     });
 
@@ -69,14 +72,14 @@ export class UsersService {
 
   async findAll(): Promise<User[]> {
     return this.usersRepository.find({
-      select: ['id', 'username', 'name', 'role', 'isActive', 'createdAt'],
+      select: ['id', 'username', 'name', 'role', 'isActive', 'canManageActualSalary', 'createdAt'],
     });
   }
 
   async findOne(id: string): Promise<User> {
     const user = await this.usersRepository.findOne({
       where: { id },
-      select: ['id', 'username', 'name', 'role', 'isActive', 'createdAt'],
+      select: ['id', 'username', 'name', 'role', 'isActive', 'canManageActualSalary', 'createdAt'],
     });
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
@@ -103,6 +106,9 @@ export class UsersService {
     }
     if (updateUserDto.isActive !== undefined) {
       user.isActive = updateUserDto.isActive;
+    }
+    if (updateUserDto.canManageActualSalary !== undefined) {
+      user.canManageActualSalary = updateUserDto.canManageActualSalary;
     }
 
     return this.usersRepository.save(user);

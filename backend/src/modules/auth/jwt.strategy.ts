@@ -19,6 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       username: payload.username,
       name: payload.name,
       role: payload.role,
+      canManageActualSalary: payload.canManageActualSalary === true,
     };
   }
 }

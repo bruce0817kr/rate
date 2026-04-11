@@ -53,7 +53,7 @@ export class UpdateProjectPersonnelDto {
   @IsNumber()
   @IsOptional()
   @Min(0)
-  annualSalary?: number;
+  actualAnnualSalaryOverride?: number;
 
   @IsNumber()
   @IsOptional()

@@ -250,12 +250,12 @@ npm run test -- src/modules/participation/participation-calculation.service.spec
 - department: 문자열
 - team: 문자열 (현재 소속 팀)
 - position: 문자열
-- salaryBand: 문자열 (예: "3000-4000", 단위: 만원)
+- positionAverageAnnualSalary: 숫자형 직급 평균 연봉(원)
 - employmentType: ENUM (FULL_TIME, CONTRACT, PART_TIME, DISPATCHED)
 - hireDate: 날짜
 - terminationDate: nullable 날짜
 - isActive: boolean
-- salaryValidity: JSONB (시작일, 종료일) - 급여 변경 이력 추적용
+- salaryValidity: JSONB (시작일, 종료일) - 평균 연봉 기준 이력 추적용
 
 #### Project (사업)
 - id: UUID (Primary Key)

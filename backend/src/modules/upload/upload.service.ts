@@ -27,7 +27,7 @@ export interface PersonnelCsvRow {
   department: string;
   team: string;
   position: string;
-  salaryBand: string;
+  positionAverageAnnualSalary?: string;
   employmentType: string;
   hireDate: string;
 }
@@ -410,7 +410,7 @@ export class UploadService {
             department: row.department,
             team: row.team,
             position: row.position,
-            salaryBand: row.salaryBand,
+            positionAverageAnnualSalary: row.positionAverageAnnualSalary ? Number(row.positionAverageAnnualSalary) : null,
             employmentType,
             hireDate: this.parseDateOrThrow(row.hireDate, '입사일'),
             isActive: true,
@@ -433,7 +433,7 @@ export class UploadService {
             department: row.department,
             team: row.team,
             position: row.position,
-            salaryBand: row.salaryBand,
+            positionAverageAnnualSalary: row.positionAverageAnnualSalary ? Number(row.positionAverageAnnualSalary) : null,
             employmentType,
             hireDate: this.parseDateOrThrow(row.hireDate, '입사일'),
             isActive: true,
