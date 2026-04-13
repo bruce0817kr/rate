@@ -14,6 +14,10 @@ export class UpdateProjectPersonnelDto {
 
   @IsNumber()
   @IsOptional()
+  fiscalYear?: number;
+
+  @IsNumber()
+  @IsOptional()
   @Min(0)
   @Max(100)
   participationRate?: number;

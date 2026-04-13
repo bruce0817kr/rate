@@ -7,6 +7,10 @@ export class UpdateSalaryBandDto {
 
   @IsOptional()
   @IsInt()
+  fiscalYear?: number;
+
+  @IsOptional()
+  @IsInt()
   @Min(0)
   averageAnnualSalary?: number;
 

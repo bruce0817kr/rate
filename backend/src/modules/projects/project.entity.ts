@@ -9,6 +9,9 @@ export class Project {
   @Column()
   name: string;
 
+  @Column({ type: 'int', nullable: true })
+  fiscalYear: number | null;
+
   @OneToMany(() => ProjectPersonnel, (pp) => pp.project)
   projectPersonnel: ProjectPersonnel[];
 

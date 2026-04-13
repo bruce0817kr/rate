@@ -27,6 +27,9 @@ export class ProjectPersonnel {
   @Column('decimal', { precision: 5, scale: 2 })
   participationRate: number; // Percentage (0-100)
 
+  @Column({ type: 'int', nullable: true })
+  fiscalYear: number | null;
+
   @Column()
   startDate: Date;
 

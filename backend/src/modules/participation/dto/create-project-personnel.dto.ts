@@ -13,6 +13,10 @@ export class CreateProjectPersonnelDto {
   personnelId: string;
 
   @IsNumber()
+  @IsOptional()
+  fiscalYear?: number;
+
+  @IsNumber()
   @Min(0)
   @Max(100)
   participationRate: number;

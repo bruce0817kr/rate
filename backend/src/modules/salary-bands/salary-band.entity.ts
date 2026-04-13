@@ -5,8 +5,11 @@ export class SalaryBand {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
+  @Column()
   position: string;
+
+  @Column({ type: 'int', nullable: true })
+  fiscalYear: number | null;
 
   @Column('bigint')
   averageAnnualSalary: number;

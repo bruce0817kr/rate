@@ -199,6 +199,16 @@ export class ProjectPersonnelService {
     return await this.projectPersonnelSegmentRepository.save(segments);
   }
 
+  private resolveFiscalYear(
+    project: Project,
+    dto?: { fiscalYear?: number; startDate?: string | Date },
+  ): number {
+    if (dto?.fiscalYear) return Number(dto.fiscalYear);
+    if (project.fiscalYear) return Number(project.fiscalYear);
+    const parsed = new Date(dto?.startDate || project.startDate);
+    return Number.isNaN(parsed.getTime()) ? new Date().getFullYear() : parsed.getUTCFullYear();
+  }
+
   private async validateRoleLimits(
     personnelId: string,
     newRole: ProjectPersonnelRole,
@@ -288,6 +298,7 @@ export class ProjectPersonnelService {
       ...createProjectPersonnelDto,
       project,
       personnel,
+      fiscalYear: this.resolveFiscalYear(project, createProjectPersonnelDto),
       participationMonths: createProjectPersonnelDto.participationMonths ?? 12,
       actualAnnualSalaryOverride: createProjectPersonnelDto.actualAnnualSalaryOverride ?? null,
       personnelCostOverride: createProjectPersonnelDto.personnelCostOverride ?? null,
@@ -326,10 +337,15 @@ export class ProjectPersonnelService {
   async findAll(
     options: FindManyOptions<ProjectPersonnel> = {},
     viewer?: { role?: UserRole; canManageActualSalary?: boolean } | null,
+    fiscalYear?: number,
   ): Promise<ProjectPersonnel[]> {
     const projectPersonnels = await this.projectPersonnelRepository.find({
       relations: ['project', 'personnel'],
       ...options,
+      where: {
+        ...(options.where as Record<string, any> || {}),
+        ...(fiscalYear ? { fiscalYear } : {}),
+      },
     });
 
     for (const projectPersonnel of projectPersonnels) {

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { ProjectPersonnelService } from './project-personnel.service';
 import { CreateProjectPersonnelDto } from './dto/create-project-personnel.dto';
 import { UpdateProjectPersonnelDto } from './dto/update-project-personnel.dto';
@@ -15,8 +15,8 @@ export class ProjectPersonnelController {
   }
 
   @Get()
-  findAll(@Request() req: any) {
-    return this.projectPersonnelService.findAll({}, req.user);
+  findAll(@Request() req: any, @Query('fiscalYear') fiscalYear?: string) {
+    return this.projectPersonnelService.findAll({}, req.user, fiscalYear ? Number(fiscalYear) : undefined);
   }
 
   @Get(':id')

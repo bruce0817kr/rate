@@ -5,6 +5,10 @@ export class CreateSalaryBandDto {
   @IsNotEmpty()
   position: string;
 
+  @IsOptional()
+  @IsInt()
+  fiscalYear?: number;
+
   @IsInt()
   @Min(0)
   averageAnnualSalary: number;

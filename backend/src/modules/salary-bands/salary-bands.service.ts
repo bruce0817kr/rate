@@ -22,17 +22,22 @@ export class SalaryBandsService {
     );
   }
 
-  async findAll(): Promise<SalaryBand[]> {
+  private resolveFiscalYear(fiscalYear?: number | null): number {
+    return fiscalYear ? Number(fiscalYear) : new Date().getFullYear();
+  }
+
+  async findAll(fiscalYear?: number): Promise<SalaryBand[]> {
     return this.salaryBandRepository.find({
-      where: { isActive: true },
+      where: { isActive: true, fiscalYear: this.resolveFiscalYear(fiscalYear) },
       order: { position: 'ASC' },
     });
   }
 
   async create(dto: CreateSalaryBandDto): Promise<SalaryBand> {
     const normalizedPosition = dto.position.trim();
+    const fiscalYear = this.resolveFiscalYear(dto.fiscalYear);
     const existing = await this.salaryBandRepository.findOne({
-      where: { position: normalizedPosition },
+      where: { position: normalizedPosition, fiscalYear },
     });
     if (existing) {
       throw new ConflictException(`Salary band for '${normalizedPosition}' already exists`);
@@ -40,6 +45,7 @@ export class SalaryBandsService {
 
     const salaryBand = this.salaryBandRepository.create({
       position: normalizedPosition,
+      fiscalYear,
       averageAnnualSalary: dto.averageAnnualSalary,
       isActive: dto.isActive ?? true,
     });
@@ -56,12 +62,15 @@ export class SalaryBandsService {
 
     if (dto.position !== undefined) {
       const normalizedPosition = dto.position.trim();
-      const existing = await this.salaryBandRepository.findOne({ where: { position: normalizedPosition } });
+      const existing = await this.salaryBandRepository.findOne({
+        where: { position: normalizedPosition, fiscalYear: this.resolveFiscalYear(salaryBand.fiscalYear) },
+      });
       if (existing && existing.id !== id) {
         throw new ConflictException(`Salary band for '${normalizedPosition}' already exists`);
       }
       salaryBand.position = normalizedPosition;
     }
+    if (dto.fiscalYear !== undefined) salaryBand.fiscalYear = dto.fiscalYear;
     if (dto.averageAnnualSalary !== undefined) salaryBand.averageAnnualSalary = dto.averageAnnualSalary;
     if (dto.isActive !== undefined) salaryBand.isActive = dto.isActive;
     const saved = await this.salaryBandRepository.save(salaryBand);

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -13,8 +13,8 @@ export class SalaryBandsController {
   constructor(private readonly salaryBandsService: SalaryBandsService) {}
 
   @Get()
-  async findAll() {
-    return this.salaryBandsService.findAll();
+  async findAll(@Query('fiscalYear') fiscalYear?: string) {
+    return this.salaryBandsService.findAll(fiscalYear ? Number(fiscalYear) : undefined);
   }
 
   @Post()

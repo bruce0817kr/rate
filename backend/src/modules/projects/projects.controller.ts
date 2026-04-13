@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, UploadedFile, UseInterceptors, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, UploadedFile, UseInterceptors, HttpException, HttpStatus, Query } from '@nestjs/common';
 import { ProjectService } from './project.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -19,9 +19,15 @@ export class ProjectsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('copy-year')
+  async copyYear(@Body() body: { sourceYear: number; targetYear: number }) {
+    return this.projectService.copyFiscalYear(Number(body.sourceYear), Number(body.targetYear));
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get()
-  findAll() {
-    return this.projectService.findAllProjects();
+  findAll(@Query('fiscalYear') fiscalYear?: string) {
+    return this.projectService.findAllProjects({}, fiscalYear ? Number(fiscalYear) : undefined);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -88,6 +94,7 @@ export class ProjectsController {
             try {
               const createProjectDto: CreateProjectDto = {
                 name: row.name,
+                fiscalYear: row.fiscalYear ? Number(row.fiscalYear) : undefined,
                 projectType: row.projectType as any, // Assuming it matches the enum values
                 managingDepartment: row.managingDepartment,
                 startDate: row.startDate,

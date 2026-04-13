@@ -5,6 +5,10 @@ export class CreateProjectDto {
   @IsNotEmpty()
   name: string;
 
+  @IsOptional()
+  @IsNumber()
+  fiscalYear?: number;
+
   @IsEnum(['NATIONAL_RD', 'LOCAL_SUBSIDY', 'MIXED'])
   projectType: string;
 
