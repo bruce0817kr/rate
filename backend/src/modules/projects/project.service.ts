@@ -101,6 +101,49 @@ export class ProjectService {
     });
   }
 
+  async getDepartmentRevenueSummary(fiscalYear?: number): Promise<any[]> {
+    const qb = this.projectRepository.createQueryBuilder('p');
+    if (fiscalYear) {
+      qb.where('p."fiscalYear" = :fiscalYear', { fiscalYear });
+    }
+    const projects = await qb.getMany();
+
+    const teamMap = new Map<string, {
+      team: string;
+      projectCount: number;
+      expectedPersonnelRevenue: number;
+      expectedIndirectRevenue: number;
+      projects: { name: string; budgetStatus: string | null; expectedPersonnelRevenue: number | null; expectedIndirectRevenue: number | null; totalBudget: number; fundingSources: Record<string, number> | null }[];
+    }>();
+
+    for (const p of projects) {
+      if (!p.managingTeam) continue;
+      if (!teamMap.has(p.managingTeam)) {
+        teamMap.set(p.managingTeam, {
+          team: p.managingTeam,
+          projectCount: 0,
+          expectedPersonnelRevenue: 0,
+          expectedIndirectRevenue: 0,
+          projects: [],
+        });
+      }
+      const entry = teamMap.get(p.managingTeam)!;
+      entry.projectCount += 1;
+      entry.expectedPersonnelRevenue += Number(p.expectedPersonnelRevenue ?? 0);
+      entry.expectedIndirectRevenue += Number(p.expectedIndirectRevenue ?? 0);
+      entry.projects.push({
+        name: p.name,
+        budgetStatus: p.budgetStatus,
+        expectedPersonnelRevenue: p.expectedPersonnelRevenue ? Number(p.expectedPersonnelRevenue) : null,
+        expectedIndirectRevenue: p.expectedIndirectRevenue ? Number(p.expectedIndirectRevenue) : null,
+        totalBudget: Number(p.totalBudget),
+        fundingSources: p.fundingSources,
+      });
+    }
+
+    return Array.from(teamMap.values()).sort((a, b) => a.team.localeCompare(b.team, 'ko'));
+  }
+
   private shiftDateToYear(value: Date | string | null | undefined, targetYear: number): Date | null {
     if (!value) return null;
     const date = new Date(value);

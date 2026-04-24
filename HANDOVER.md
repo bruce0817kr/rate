@@ -2,7 +2,7 @@
 
 **작성일**: 2026-04-03  
 **최종 작성자**: AI Assistant (Sisyphus)
-**최종 업데이트**: 2026-04-03 (오늘 작업 반영)
+**최종 업데이트**: 2026-04-24 (2026-04-21 작업 반영)
 
 ---
 
@@ -76,7 +76,37 @@ saas-project/
 
 ## 3. 구현 완료 기능
 
-### 3.1 오늘 작업 (2026-04-03)
+### 3.0 최신 작업 (2026-04-21)
+
+| 기능 | 상태 | 파일 |
+|------|------|------|
+| 부서별 수입 현황 페이지 신규 추가 | ✅ | `DepartmentRevenue.tsx` |
+| 엑셀 77개 사업 데이터 DB 적재 | ✅ | `import_revenue.py` → rate_db |
+| `GET /api/projects/department-revenue` 엔드포인트 | ✅ | `projects.controller.ts`, `project.service.ts` |
+| Dashboard 전체 팀 표시 (slice 제거) | ✅ | `Dashboard.tsx` |
+| TeamMemberList 페이지네이션 (20건/페이지) | ✅ | `TeamMemberList.tsx` |
+| ProjectList 페이지네이션 (20건/페이지) | ✅ | `ProjectList.tsx` |
+
+#### DB 스키마 변경 (projects 테이블 컬럼 추가)
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| `expectedPersonnelRevenue` | numeric(15,2) | 예상 인건비 수입 |
+| `expectedIndirectRevenue` | numeric(15,2) | 예상 간접비 수입 |
+| `budgetStatus` | varchar(20) | 계속/신규/종료/폐지 |
+| `fundingSources` | jsonb | {자체, 도비, 국비, 안산시, 타시군, 기타} |
+
+#### 접속 정보
+- DB: rate-postgres 컨테이너, port **5433**, rate_db / rate_user / rate_password
+- 프론트엔드 URL: http://localhost:3033/gtp_rate (basename: `/gtp_rate`)
+- 부서별 수입 현황: http://localhost:3033/gtp_rate/department-revenue
+
+#### 미해결
+- `personnel_costs` 테이블 현재 0건 → 예산 대비 실적 비교 불가 (예산만 표시)
+- 실적 데이터 입력 시 "예상 vs 실적" 컬럼 자동 활성화 가능
+
+---
+
+### 3.1 작업 (2026-04-03)
 
 | 기능 | 상태 | 파일 |
 |------|------|------|
@@ -89,23 +119,24 @@ saas-project/
 | 인건비 조정(-A) 기능 | ✅ | `TeamDetail.tsx` (참여율 조절 모달) |
 | Docker 재빌드/재실행 | ✅ | docker-compose |
 
-### 3.2 현재 직급 체계
+### 3.2 현재 직급 체계 (2025년 기준)
 
 | 직급 | 급여대역 (만원) | 비고 |
 |------|----------------|------|
-| 1급(원장) | 12,500-14,500 | |
-| 2급(부장) | 12,500-14,200 | |
-| 3급(차장) | 12,000-13,800 | |
-| 4급(과장) | 10,800-12,600 | |
-| 5급(대리) | 8,800-10,500 | |
-| 6급(주임) | 5,900-7,200 | |
-| 7급(사원) | 4,900-6,000 | |
-| 나급(대리) | 7,500-8,800 | 계약직 |
-| 다급(주임) | 4,800-5,800 | 계약직 |
-| 라급(사원) | 4,200-5,200 | 계약직 |
-| 공무직가급 | 6,600-7,600 | 공무직 |
-| 공무직나급 | 6,100-7,200 | 공무직 |
-| 공무직다급 | 4,400-5,300 | 공무직 |
+| 원장 | 13,000-14,000 | |
+| 부장 | 12,500-13,500 | |
+| 차장 | 12,000-13,000 | |
+| 팀장 | 10,800-12,600 | |
+| 과장 | 10,000-12,000 | |
+| 대리 | 8,800-9,700 | |
+| 주임 | 5,900-6,600 | |
+| 사원 | 4,900-5,500 | |
+| 나급(대리) | 7,700-8,200 | 계약직 |
+| 다급(주임) | 5,000-5,400 | 계약직 |
+| 라급(사원) | 4,400-4,700 | 계약직 |
+| 공무직가급 | 6,800-7,200 | 공무직 |
+| 공무직나급 | 6,300-6,700 | 공무직 |
+| 공무직다급 | 4,600-4,900 | 공무직 |
 
 ### 3.3 현재 조직 구조 (팀 목록)
 
@@ -222,6 +253,7 @@ saas-project/
 |--------|----------|------|------|
 | GET | `/projects` | 사업 목록 | Authenticated |
 | GET | `/projects/:id` | 사업 상세 | Authenticated |
+| GET | `/projects/department-revenue?fiscalYear=2026` | 부서별 수입 현황 | Authenticated |
 
 ### 4.6 참여율 모니터링
 
@@ -240,7 +272,7 @@ saas-project/
 | 규칙 | 설명 | enforcement |
 |------|------|-------------|
 | **3책** | 연구책임자(PRINCIPAL_INVESTIGATOR) 역할은 최대 3개事业까지 | ✅ |
-| **5공** | 모든 역할(含 연구책임자, 공동조사자, 참여研究者) 합계 최대 5개 | ✅ |
+| **5공** | 모든 역할(含 연구책임자, 참여연구자) 합계 최대 5개 | ✅ |
 | **100%** | 개인별 총 참여율은 100% 초과 불가 | ⚠️ UI 경고만 (백엔드 enforcement 미구현) |
 
 ### 5.2 역할 종류
@@ -248,8 +280,7 @@ saas-project/
 | 역할 | 코드 | 설명 |
 |------|------|------|
 | 연구책임자 | PRINCIPAL_INVESTIGATOR | 3책 제한 적용 |
-| 공동조사자 | CO_RESEARCHER | 5공 합계에 포함 |
-| 참여研究者 | PARTICIPATING_RESEARCHER | 5공 합계에 포함 |
+| 참여연구자 | PARTICIPATING_RESEARCHER | 5공 합계에 포함 |
 
 ---
 
@@ -267,6 +298,7 @@ saas-project/
 | 알림 | `/alerts` | 참여율 경고, 이상 징후 |
 | 설정 | `/settings` | 직급별 급여대역 |
 | 감사 로그 | `/audit-logs` | 모든 변경 이력 (ADMIN/HR_FINANCE) |
+| 부서별 수입 현황 | `/department-revenue` | 팀별 사업 예산 수입 현황 (77개 사업) |
 
 ---
 
@@ -483,7 +515,53 @@ frontend/src/
 
 ---
 
-## 14. 연락처 및 참고
+## 14. 윈도우 컴퓨터 간 프로젝트 이동
+
+### 14.1 방법: 폴더 통째로 복사
+
+프로젝트 폴더를 그대로 복사하면 됩니다.
+
+```powershell
+# 기존 서버에서 (PowerShell 또는 명령 프롬프트)
+xcopy /E /I C:\Project\rate \\새서버\C:\Project\rate
+```
+
+### 14.2 복사 후 작업
+
+1. **Docker Desktop 실행** (대상 서버에서)
+2. **DB 데이터 백업/복원** (볼륨 경로가 달라지므로)
+   ```powershell
+   # 기존 서버에서 백업
+   cd C:\Project\rate\saas-project
+   docker compose exec postgres pg_dump -Fc -U postgres > db_backup.dump
+   
+   # 대상 서버로 파일 복사 후 복원
+   docker compose exec -T postgres pg_restore < db_backup.dump
+   ```
+3. **Docker 실행**
+   ```powershell
+   cd C:\Project\rate\saas-project
+   docker compose up -d
+   ```
+
+### 14.3 검증
+
+```powershell
+docker compose ps           # 컨테이너 상태 확인
+docker compose logs -f    # 로그 확인
+```
+
+### 14.4 주의사항
+
+| 항목 | 설명 |
+|------|------|
+| **볼륨 경로** | Windows Docker Desktop과 호스트 간 경로가 다름 → `pg_dump/restore` 사용 권장 |
+| **빌드 캐시** | 처음 실행 시 `--no-cache`로 빌드 권장 |
+| **포트 충돌** | 3000, 3001, 5433 포트 사용 중인지 확인 |
+
+---
+
+## 15. 연락처 및 참고
 
 - **프로젝트 README**: `saas-project/README.md`
 - **설계 문서**: `saas-project/DESIGN.md`

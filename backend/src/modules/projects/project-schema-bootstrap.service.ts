@@ -14,6 +14,26 @@ export class ProjectSchemaBootstrapService implements OnApplicationBootstrap {
     `);
 
     await this.dataSource.query(`
+      ALTER TABLE "projects"
+      ADD COLUMN IF NOT EXISTS "expectedPersonnelRevenue" numeric(15,2) NULL
+    `);
+
+    await this.dataSource.query(`
+      ALTER TABLE "projects"
+      ADD COLUMN IF NOT EXISTS "expectedIndirectRevenue" numeric(15,2) NULL
+    `);
+
+    await this.dataSource.query(`
+      ALTER TABLE "projects"
+      ADD COLUMN IF NOT EXISTS "budgetStatus" varchar(20) NULL
+    `);
+
+    await this.dataSource.query(`
+      ALTER TABLE "projects"
+      ADD COLUMN IF NOT EXISTS "fundingSources" jsonb NULL
+    `);
+
+    await this.dataSource.query(`
       UPDATE "projects"
       SET "fiscalYear" = EXTRACT(YEAR FROM "startDate")::int
       WHERE "fiscalYear" IS NULL

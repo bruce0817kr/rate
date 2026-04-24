@@ -39,6 +39,18 @@ export class Project {
   @Column('decimal', { precision: 15, scale: 2, nullable: true })
   personnelCostFinalTotal: number | null; // Manual final personnel total adjustment
 
+  @Column('decimal', { precision: 15, scale: 2, nullable: true })
+  expectedPersonnelRevenue: number | null;
+
+  @Column('decimal', { precision: 15, scale: 2, nullable: true })
+  expectedIndirectRevenue: number | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  budgetStatus: string | null;
+
+  @Column('jsonb', { nullable: true })
+  fundingSources: Record<string, number> | null;
+
   @Column({
     type: 'enum',
     enum: ['PLANNING', 'APPROVED', 'IN_PROGRESS', 'COMPLETED', 'AUDITING'],

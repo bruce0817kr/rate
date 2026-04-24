@@ -31,6 +31,12 @@ export class ProjectsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('department-revenue')
+  getDepartmentRevenue(@Query('fiscalYear') fiscalYear?: string) {
+    return this.projectService.getDepartmentRevenueSummary(fiscalYear ? Number(fiscalYear) : undefined);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.projectService.findProjectById(id);
