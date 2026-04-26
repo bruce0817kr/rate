@@ -2,7 +2,7 @@
 
 **작성일**: 2026-04-03  
 **최종 작성자**: AI Assistant (Sisyphus)
-**최종 업데이트**: 2026-04-24 (2026-04-21 작업 반영)
+**최종 업데이트**: 2026-04-26
 
 ---
 
@@ -76,7 +76,18 @@ saas-project/
 
 ## 3. 구현 완료 기능
 
-### 3.0 최신 작업 (2026-04-21)
+### 3.0 최신 작업 (2026-04-26)
+
+| 기능 | 상태 | 파일 |
+|------|------|------|
+| nginx basename `/gtp_rate` 라우팅 설정 | ✅ | `frontend/nginx.conf` |
+| package.json homepage `/gtp_rate` 설정 | ✅ | `frontend/package.json` |
+| 앱 타이틀 변경 → "GTP 참여율 관리 시스템" | ✅ | `frontend/public/index.html` |
+| AppLayout 페이지 타이틀 정비 | ✅ | `AppLayout.tsx` |
+
+---
+
+### 3.2 이전 작업 (2026-04-21)
 
 | 기능 | 상태 | 파일 |
 |------|------|------|
