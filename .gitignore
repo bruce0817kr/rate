@@ -31,3 +31,9 @@ Thumbs.db
 # Test coverage
 coverage/
 *.lcov
+
+# Local QA artifacts
+artifacts/qa/
+
+# Site-specific firewall snapshots
+docs/*firewall-full.conf
