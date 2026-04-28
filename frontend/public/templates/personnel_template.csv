@@ -1,0 +1,2 @@
+employeeId,name,gender,highestEducation,educationYear,nationalResearcherNumber,birthDate,department,team,position,positionAverageAnnualSalary,employmentType,hireDate
+EMP001,홍길동,M,학사,2018,NR001,1990-01-01,인사총무팀,인사총무팀,주임연구원,50000000,FULL_TIME,2022-01-01

@@ -1,0 +1,4 @@
+employeeId,projectName,participationRate,role,startDate,endDate,calculationMethod,expenseCode,legalBasisCode,participatingTeam,notes
+EMP001,AI 기술개발,20,PARTICIPATING_RESEARCHER,2026-01-01,2026-03-31,MONTHLY,personnel-base,DEFAULT,전략기획팀,1구간
+EMP001,AI 기술개발,80,PARTICIPATING_RESEARCHER,2026-04-01,2026-08-31,MONTHLY,personnel-base,DEFAULT,전략기획팀,2구간
+EMP001,AI 기술개발,90,PARTICIPATING_RESEARCHER,2026-09-01,2026-11-30,MONTHLY,personnel-base,DEFAULT,전략기획팀,3구간

@@ -1,0 +1,2 @@
+name,department,description,managerName,managerEmail,managerPhone,plannedHeadcount,isActive
+전략기획팀,경영지원본부,중장기 전략 수립,김팀장,manager@example.com,010-1234-5678,8,true
