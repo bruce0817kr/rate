@@ -107,7 +107,7 @@ saas-project/
 | `fundingSources` | jsonb | {자체, 도비, 국비, 안산시, 타시군, 기타} |
 
 #### 접속 정보
-- DB: rate-postgres 컨테이너, port **5433**, rate_db / rate_user / rate_password
+- DB: rate-postgres 컨테이너, port **5433**, DB명/사용자/비밀번호는 `.env`의 `RATE_DB_NAME`, `RATE_DB_USERNAME`, `RATE_DB_PASSWORD` 참조
 - 프론트엔드 URL: http://localhost:3033/gtp_rate (basename: `/gtp_rate`)
 - 부서별 수입 현황: http://localhost:3033/gtp_rate/department-revenue
 
