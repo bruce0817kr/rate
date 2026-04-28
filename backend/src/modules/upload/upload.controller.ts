@@ -16,10 +16,39 @@ import * as XLSX from 'xlsx';
 import { Readable } from 'stream';
 import csvParser from 'csv-parser';
 
+const MAX_UPLOAD_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const SUPPORTED_UPLOAD_EXTENSIONS = ['csv', 'xlsx', 'xls'];
+const uploadInterceptor = FileInterceptor('file', {
+  limits: { fileSize: MAX_UPLOAD_FILE_SIZE_BYTES },
+  fileFilter: (_req, file, callback) => {
+    const extension = file.originalname.split('.').pop()?.toLowerCase();
+    if (!extension || !SUPPORTED_UPLOAD_EXTENSIONS.includes(extension)) {
+      callback(new BadRequestException('Only CSV and Excel files are supported'), false);
+      return;
+    }
+    callback(null, true);
+  },
+});
+
 @Controller('upload')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
+
+  private assertSupportedFile(file: Express.Multer.File): void {
+    const extension = file.originalname.split('.').pop()?.toLowerCase();
+    if (!extension || !SUPPORTED_UPLOAD_EXTENSIONS.includes(extension)) {
+      throw new BadRequestException('Only CSV and Excel files are supported');
+    }
+
+    if (file.size === 0 || file.buffer.length === 0) {
+      throw new BadRequestException('File must not be empty');
+    }
+
+    if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES || file.buffer.length > MAX_UPLOAD_FILE_SIZE_BYTES) {
+      throw new BadRequestException('File size cannot exceed 10MB');
+    }
+  }
 
   private async parseExcel(file: Express.Multer.File): Promise<any[]> {
     const extension = file.originalname.split('.').pop()?.toLowerCase();
@@ -47,11 +76,12 @@ export class UploadController {
 
   @Post('personnel')
   @Roles(UserRole.ADMIN, UserRole.STRATEGY_PLANNING, UserRole.HR_GENERAL_AFFAIRS)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(uploadInterceptor)
   async uploadPersonnel(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
+    this.assertSupportedFile(file);
 
     const data = await this.parseExcel(file);
     const result = await this.uploadService.uploadPersonnel(data as PersonnelCsvRow[]);
@@ -63,11 +93,12 @@ export class UploadController {
 
   @Post('projects')
   @Roles(UserRole.ADMIN, UserRole.STRATEGY_PLANNING, UserRole.HR_GENERAL_AFFAIRS)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(uploadInterceptor)
   async uploadProjects(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
+    this.assertSupportedFile(file);
 
     const data = await this.parseExcel(file);
     const result = await this.uploadService.uploadProjects(data as ProjectCsvRow[]);
@@ -79,11 +110,12 @@ export class UploadController {
 
   @Post('project-personnel')
   @Roles(UserRole.ADMIN, UserRole.STRATEGY_PLANNING, UserRole.HR_GENERAL_AFFAIRS)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(uploadInterceptor)
   async uploadProjectPersonnel(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
+    this.assertSupportedFile(file);
 
     const data = await this.parseExcel(file);
     const result = await this.uploadService.uploadProjectPersonnel(data as ProjectPersonnelCsvRow[]);
@@ -95,11 +127,12 @@ export class UploadController {
 
   @Post('users')
   @Roles(UserRole.ADMIN)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(uploadInterceptor)
   async uploadUsers(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
+    this.assertSupportedFile(file);
 
     const data = await this.parseExcel(file);
     const result = await this.uploadService.uploadUsers(data as UserCsvRow[]);
@@ -111,11 +144,12 @@ export class UploadController {
 
   @Post('teams')
   @Roles(UserRole.ADMIN, UserRole.STRATEGY_PLANNING, UserRole.HR_GENERAL_AFFAIRS)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(uploadInterceptor)
   async uploadTeams(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
+    this.assertSupportedFile(file);
 
     const data = await this.parseExcel(file);
     const result = await this.uploadService.uploadTeams(data as TeamCsvRow[]);
