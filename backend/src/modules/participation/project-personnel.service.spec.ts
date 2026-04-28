@@ -9,6 +9,7 @@ import { Personnel } from '../personnel/personnel.entity';
 import { ProjectPersonnelRole } from './project-personnel-role.enum';
 import { ParticipationCalculationService } from './participation-calculation.service';
 import { AuditService } from '../audit/audit.service';
+import { UpdateProjectPersonnelDto } from './dto/update-project-personnel.dto';
 
 describe('ProjectPersonnelService', () => {
   let service: ProjectPersonnelService;
@@ -47,6 +48,7 @@ describe('ProjectPersonnelService', () => {
 
   const mockParticipationCalculationService = {
     validateParticipationRate: jest.fn(),
+    validateTotalParticipationRate: jest.fn(),
     calculateMonthlyCost: jest.fn(),
     getApplicableAnnualSalary: jest.fn(),
   };
@@ -280,6 +282,353 @@ describe('ProjectPersonnelService', () => {
       expect(result.segments).toHaveLength(1);
       expect(result.segments?.[0].participationRate).toBe(50);
       expect(result.participationMonths).toBe(3);
+    });
+  });
+
+  describe('commercial safety checks', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      projectRepository.findOne.mockResolvedValue(mockProject as Project);
+      personnelRepository.findOne.mockResolvedValue(mockPersonnel as Personnel);
+      projectPersonnelRepository.find.mockResolvedValue([] as ProjectPersonnel[]);
+      projectPersonnelRepository.create.mockImplementation((input: any) => input);
+      projectPersonnelRepository.save.mockImplementation(async (input: any) => input);
+      projectPersonnelSegmentRepository.create.mockImplementation((input: any) => input);
+      projectPersonnelSegmentRepository.save.mockImplementation(async (input: any) => input);
+      projectPersonnelSegmentRepository.find.mockResolvedValue([] as ProjectPersonnelSegment[]);
+    });
+
+    it('rejects actual salary override from viewers without salary permission', async () => {
+      await expect(
+        service.createProjectPersonnel(
+          {
+            projectId: 'project-1',
+            personnelId: 'personnel-1',
+            participationRate: 20,
+            startDate: '2026-01-01',
+            calculationMethod: 'MONTHLY',
+            expenseCode: 'EXP001',
+            legalBasisCode: 'LEGAL001',
+            participatingTeam: '연구팀',
+            actualAnnualSalaryOverride: 72000000,
+          } as any,
+          { role: 'GENERAL', canManageActualSalary: false } as any,
+        ),
+      ).rejects.toThrow('Actual annual salary override is not allowed');
+    });
+
+    it('records previous and next values in update audit logs', async () => {
+      const existing = {
+        ...mockProjectPersonnel,
+        actualAnnualSalaryOverride: 70000000,
+      } as ProjectPersonnel;
+      projectPersonnelRepository.findOne.mockResolvedValue(existing);
+      projectPersonnelRepository.save.mockImplementation(async (input: any) => input);
+
+      await service.update(
+        'pp-1',
+        { participationRate: 60, actualAnnualSalaryOverride: 71000000 } as any,
+        { role: 'ADMIN', canManageActualSalary: true } as any,
+      );
+
+      expect(mockAuditService.logChange).toHaveBeenCalledWith(
+        'ProjectPersonnel',
+        'pp-1',
+        'UPDATE',
+        expect.objectContaining({
+          previous: expect.objectContaining({
+            participationRate: 50,
+            actualAnnualSalaryOverride: 70000000,
+          }),
+          next: expect.objectContaining({
+            participationRate: 60,
+            actualAnnualSalaryOverride: 71000000,
+          }),
+        }),
+        'SYSTEM',
+      );
+    });
+
+    it('rejects creating an active assignment when total active participation would exceed 100%', async () => {
+      projectPersonnelRepository.find.mockResolvedValue([
+        {
+          ...mockProjectPersonnel,
+          id: 'pp-existing',
+          participationRate: 60,
+          role: ProjectPersonnelRole.PARTICIPATING_RESEARCHER,
+          endDate: new Date('2027-12-31'),
+        } as ProjectPersonnel,
+      ]);
+      mockParticipationCalculationService.validateTotalParticipationRate.mockImplementation((total: number) => {
+        if (total > 100) {
+          throw new Error(`Total participation rate cannot exceed 100%, got: ${total}%`);
+        }
+      });
+
+      await expect(
+        service.createProjectPersonnel({
+          projectId: 'project-1',
+          personnelId: 'personnel-1',
+          participationRate: 50,
+          startDate: '2026-01-01',
+          endDate: '2026-12-31',
+          calculationMethod: 'MONTHLY',
+          expenseCode: 'EXP001',
+          legalBasisCode: 'LEGAL001',
+          participatingTeam: '연구팀',
+        }),
+      ).rejects.toThrow('Total participation rate cannot exceed 100%');
+    });
+
+    it('rejects date-only updates that would make role assignments exceed 5 active projects', async () => {
+      const historicalAssignment = {
+        ...mockProjectPersonnel,
+        id: 'pp-1',
+        role: ProjectPersonnelRole.PARTICIPATING_RESEARCHER,
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-12-31'),
+        participationRate: 10,
+        personnel: mockPersonnel as Personnel,
+      } as ProjectPersonnel;
+      projectPersonnelRepository.findOne.mockResolvedValue(historicalAssignment);
+      projectPersonnelRepository.find.mockResolvedValue([
+        ...Array.from({ length: 5 }, (_, index) => ({
+          ...mockProjectPersonnel,
+          id: `pp-active-${index}`,
+          role: ProjectPersonnelRole.PARTICIPATING_RESEARCHER,
+          endDate: new Date('2027-12-31'),
+        } as ProjectPersonnel)),
+        historicalAssignment,
+      ]);
+
+      await expect(
+        service.update('pp-1', { endDate: '2027-12-31' }),
+      ).rejects.toThrow();
+    });
+
+    it('allows non-overlapping existing windows when no point in time exceeds 100% participation', async () => {
+      projectPersonnelRepository.find.mockResolvedValue([
+        {
+          ...mockProjectPersonnel,
+          id: 'pp-january',
+          participationRate: 30,
+          role: ProjectPersonnelRole.PARTICIPATING_RESEARCHER,
+          startDate: new Date('2026-01-01'),
+          endDate: new Date('2026-01-31'),
+        } as ProjectPersonnel,
+        {
+          ...mockProjectPersonnel,
+          id: 'pp-december',
+          participationRate: 30,
+          role: ProjectPersonnelRole.PARTICIPATING_RESEARCHER,
+          startDate: new Date('2026-12-01'),
+          endDate: new Date('2026-12-31'),
+        } as ProjectPersonnel,
+      ]);
+      mockParticipationCalculationService.validateTotalParticipationRate.mockImplementation((total: number) => {
+        if (total > 100) {
+          throw new Error(`Total participation rate cannot exceed 100%, got: ${total}%`);
+        }
+      });
+
+      await expect(
+        service.createProjectPersonnel({
+          projectId: 'project-1',
+          personnelId: 'personnel-1',
+          participationRate: 50,
+          startDate: '2026-01-01',
+          endDate: '2026-12-31',
+          calculationMethod: 'MONTHLY',
+          expenseCode: 'EXP001',
+          legalBasisCode: 'LEGAL001',
+          participatingTeam: '연구팀',
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it('rejects future assignments that would exceed 5 active projects during the candidate window', async () => {
+      projectPersonnelRepository.find.mockResolvedValue(
+        Array.from({ length: 5 }, (_, index) => ({
+          ...mockProjectPersonnel,
+          id: `pp-future-${index}`,
+          participationRate: 1,
+          role: ProjectPersonnelRole.PARTICIPATING_RESEARCHER,
+          startDate: new Date('2027-01-01'),
+          endDate: new Date('2027-12-31'),
+        } as ProjectPersonnel)),
+      );
+
+      await expect(
+        service.createProjectPersonnel({
+          projectId: 'project-1',
+          personnelId: 'personnel-1',
+          participationRate: 1,
+          startDate: '2027-06-01',
+          endDate: '2027-06-30',
+          calculationMethod: 'MONTHLY',
+          expenseCode: 'EXP001',
+          legalBasisCode: 'LEGAL001',
+          participatingTeam: '연구팀',
+        }),
+      ).rejects.toThrow('Active project assignments cannot exceed 5');
+    });
+
+    it('rejects legacy field updates on multi-segment records unless replacement segments are provided', async () => {
+      projectPersonnelRepository.findOne.mockResolvedValue({
+        ...mockProjectPersonnel,
+        personnel: mockPersonnel as Personnel,
+        segments: [],
+      } as ProjectPersonnel);
+      projectPersonnelSegmentRepository.find.mockResolvedValue([
+        {
+          projectPersonnel: mockProjectPersonnel as ProjectPersonnel,
+          startDate: new Date('2026-01-01'),
+          endDate: new Date('2026-03-31'),
+          participationRate: 20,
+          personnelCostOverride: null,
+          sortOrder: 0,
+          notes: null,
+        } as ProjectPersonnelSegment,
+        {
+          projectPersonnel: mockProjectPersonnel as ProjectPersonnel,
+          startDate: new Date('2026-04-01'),
+          endDate: new Date('2026-12-31'),
+          participationRate: 40,
+          personnelCostOverride: null,
+          sortOrder: 1,
+          notes: null,
+        } as ProjectPersonnelSegment,
+      ]);
+
+      await expect(
+        service.update('pp-1', { participationRate: 60 }),
+      ).rejects.toThrow('segments');
+    });
+
+    it('rejects empty replacement segments on multi-segment records with legacy field updates', async () => {
+      projectPersonnelRepository.findOne.mockResolvedValue({
+        ...mockProjectPersonnel,
+        personnel: mockPersonnel as Personnel,
+        segments: [],
+      } as ProjectPersonnel);
+      projectPersonnelSegmentRepository.find.mockResolvedValue([
+        {
+          projectPersonnel: mockProjectPersonnel as ProjectPersonnel,
+          startDate: new Date('2026-01-01'),
+          endDate: new Date('2026-03-31'),
+          participationRate: 20,
+          personnelCostOverride: null,
+          sortOrder: 0,
+          notes: null,
+        } as ProjectPersonnelSegment,
+        {
+          projectPersonnel: mockProjectPersonnel as ProjectPersonnel,
+          startDate: new Date('2026-04-01'),
+          endDate: new Date('2026-12-31'),
+          participationRate: 40,
+          personnelCostOverride: null,
+          sortOrder: 1,
+          notes: null,
+        } as ProjectPersonnelSegment,
+      ]);
+
+      await expect(
+        service.update('pp-1', { segments: [], participationRate: 60 }),
+      ).rejects.toThrow('segments');
+    });
+
+    it('rejects empty replacement segments on multi-segment records even without legacy fields', async () => {
+      projectPersonnelRepository.findOne.mockResolvedValue({
+        ...mockProjectPersonnel,
+        personnel: mockPersonnel as Personnel,
+        segments: [],
+      } as ProjectPersonnel);
+      projectPersonnelSegmentRepository.find.mockResolvedValue([
+        {
+          projectPersonnel: mockProjectPersonnel as ProjectPersonnel,
+          startDate: new Date('2026-01-01'),
+          endDate: new Date('2026-03-31'),
+          participationRate: 20,
+          personnelCostOverride: null,
+          sortOrder: 0,
+          notes: null,
+        } as ProjectPersonnelSegment,
+        {
+          projectPersonnel: mockProjectPersonnel as ProjectPersonnel,
+          startDate: new Date('2026-04-01'),
+          endDate: new Date('2026-12-31'),
+          participationRate: 40,
+          personnelCostOverride: null,
+          sortOrder: 1,
+          notes: null,
+        } as ProjectPersonnelSegment,
+      ]);
+
+      await expect(
+        service.update('pp-1', { segments: [] }),
+      ).rejects.toThrow('segments');
+    });
+
+    it('rejects null replacement segments on multi-segment records with legacy field updates', async () => {
+      projectPersonnelRepository.findOne.mockResolvedValue({
+        ...mockProjectPersonnel,
+        personnel: mockPersonnel as Personnel,
+        segments: [],
+      } as ProjectPersonnel);
+      projectPersonnelSegmentRepository.find.mockResolvedValue([
+        {
+          projectPersonnel: mockProjectPersonnel as ProjectPersonnel,
+          startDate: new Date('2026-01-01'),
+          endDate: new Date('2026-03-31'),
+          participationRate: 20,
+          personnelCostOverride: null,
+          sortOrder: 0,
+          notes: null,
+        } as ProjectPersonnelSegment,
+        {
+          projectPersonnel: mockProjectPersonnel as ProjectPersonnel,
+          startDate: new Date('2026-04-01'),
+          endDate: new Date('2026-12-31'),
+          participationRate: 40,
+          personnelCostOverride: null,
+          sortOrder: 1,
+          notes: null,
+        } as ProjectPersonnelSegment,
+      ]);
+      const updateData = { segments: null, participationRate: 60 } as unknown as UpdateProjectPersonnelDto;
+
+      await expect(service.update('pp-1', updateData)).rejects.toThrow('segments');
+    });
+
+    it('rejects null replacement segments on multi-segment records even without legacy fields', async () => {
+      projectPersonnelRepository.findOne.mockResolvedValue({
+        ...mockProjectPersonnel,
+        personnel: mockPersonnel as Personnel,
+        segments: [],
+      } as ProjectPersonnel);
+      projectPersonnelSegmentRepository.find.mockResolvedValue([
+        {
+          projectPersonnel: mockProjectPersonnel as ProjectPersonnel,
+          startDate: new Date('2026-01-01'),
+          endDate: new Date('2026-03-31'),
+          participationRate: 20,
+          personnelCostOverride: null,
+          sortOrder: 0,
+          notes: null,
+        } as ProjectPersonnelSegment,
+        {
+          projectPersonnel: mockProjectPersonnel as ProjectPersonnel,
+          startDate: new Date('2026-04-01'),
+          endDate: new Date('2026-12-31'),
+          participationRate: 40,
+          personnelCostOverride: null,
+          sortOrder: 1,
+          notes: null,
+        } as ProjectPersonnelSegment,
+      ]);
+      const updateData = { segments: null } as unknown as UpdateProjectPersonnelDto;
+
+      await expect(service.update('pp-1', updateData)).rejects.toThrow('segments');
     });
   });
 });

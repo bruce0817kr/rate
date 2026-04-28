@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindManyOptions } from 'typeorm';
+import { Repository, FindManyOptions, FindOptionsWhere } from 'typeorm';
 import { ProjectPersonnel } from './project-personnel.entity';
 import { ProjectPersonnelSegment } from './project-personnel-segment.entity';
 import { ProjectPersonnelRole } from './project-personnel-role.enum';
@@ -71,6 +71,50 @@ export class ProjectPersonnelService {
     );
   }
 
+  private isActiveOn(date: Date, startDate: Date, endDate: Date | null | undefined): boolean {
+    return startDate <= date && (!endDate || endDate >= date);
+  }
+
+  private getParticipationWindows(projectPersonnel: ProjectPersonnel): Array<{
+    startDate: Date;
+    endDate: Date | null;
+    participationRate: number;
+  }> {
+    const persistedSegments = projectPersonnel.segments?.filter((segment) => segment?.startDate && segment?.endDate) ?? [];
+    if (persistedSegments.length) {
+      return persistedSegments.map((segment) => ({
+        startDate: new Date(segment.startDate),
+        endDate: new Date(segment.endDate),
+        participationRate: Number(segment.participationRate),
+      }));
+    }
+
+    return [{
+      startDate: new Date(projectPersonnel.startDate),
+      endDate: projectPersonnel.endDate ? new Date(projectPersonnel.endDate) : null,
+      participationRate: Number(projectPersonnel.participationRate),
+    }];
+  }
+
+  private getWindowBoundaryPoints(
+    windows: Array<{ startDate: Date; endDate: Date | null | undefined }>,
+  ): Date[] {
+    const points = windows.flatMap((window) => [window.startDate, window.endDate]).filter((date): date is Date => !!date);
+    return Array.from(new Map(points.map((date) => [date.getTime(), date])).values());
+  }
+
+  private getActiveWindowRateAt(
+    windows: Array<{ startDate: Date; endDate: Date | null; participationRate: number }>,
+    point: Date,
+  ): number {
+    return windows.reduce((sum, window) => {
+      if (this.isActiveOn(point, window.startDate, window.endDate)) {
+        return sum + Number(window.participationRate);
+      }
+      return sum;
+    }, 0);
+  }
+
   private validateSegments(segments: ProjectPersonnelSegment[]): void {
     const ordered = [...segments].sort(
       (left, right) => new Date(left.startDate).getTime() - new Date(right.startDate).getTime(),
@@ -129,14 +173,20 @@ export class ProjectPersonnelService {
       personnelCostOverride?: number | null;
     },
   ): ProjectPersonnelSegment[] {
-    if (!createProjectPersonnelDto.segments || createProjectPersonnelDto.segments.length === 0) {
+    const hasSegmentsKey = Object.prototype.hasOwnProperty.call(createProjectPersonnelDto, 'segments');
+    if (!hasSegmentsKey) {
       return this.buildSegmentsFromLegacy(projectPersonnel, {
         ...fallback,
         endDate: fallback.endDate ?? undefined,
       });
     }
 
-    return createProjectPersonnelDto.segments.map((segment, index) =>
+    const providedSegments = createProjectPersonnelDto.segments;
+    if (!Array.isArray(providedSegments) || providedSegments.length === 0) {
+      throw new BadRequestException('segments must contain at least one segment when provided');
+    }
+
+    return providedSegments.map((segment, index) =>
       this.projectPersonnelSegmentRepository.create({
         projectPersonnel,
         startDate: new Date(segment.startDate),
@@ -195,7 +245,9 @@ export class ProjectPersonnelService {
     segments: ProjectPersonnelSegment[],
   ): Promise<ProjectPersonnelSegment[]> {
     this.validateSegments(segments);
-    await this.projectPersonnelSegmentRepository.delete({ projectPersonnel: { id: projectPersonnel.id } as any });
+    await this.projectPersonnelSegmentRepository.delete({
+      projectPersonnel: { id: projectPersonnel.id },
+    } as FindOptionsWhere<ProjectPersonnelSegment>);
     return await this.projectPersonnelSegmentRepository.save(segments);
   }
 
@@ -212,42 +264,85 @@ export class ProjectPersonnelService {
   private async validateRoleLimits(
     personnelId: string,
     newRole: ProjectPersonnelRole,
+    candidateWindows: Array<{ startDate: Date; endDate: Date | null }>,
     excludeProjectPersonnelId?: string,
   ): Promise<void> {
     const existingParticipations = await this.projectPersonnelRepository.find({
       where: { personnel: { id: personnelId } },
-      relations: ['project'],
+      relations: ['project', 'segments'],
     });
 
-    let activeParticipations = existingParticipations.filter(
-      pp => !pp.endDate || pp.endDate > new Date(),
-    );
-
-    if (excludeProjectPersonnelId) {
-      activeParticipations = activeParticipations.filter(pp => pp.id !== excludeProjectPersonnelId);
-    }
-
-    const piCount = activeParticipations.filter(
-      pp => pp.role === ProjectPersonnelRole.PRINCIPAL_INVESTIGATOR,
-    ).length;
-
-    const totalRoles = activeParticipations.length;
-
+    const comparableParticipations = excludeProjectPersonnelId
+      ? existingParticipations.filter((pp) => pp.id !== excludeProjectPersonnelId)
+      : existingParticipations;
+    const existingWindowsByParticipation = comparableParticipations.map((participation) => ({
+      participation,
+      windows: this.getParticipationWindows(participation),
+    }));
+    const boundaryPoints = this.getWindowBoundaryPoints([
+      ...candidateWindows,
+      ...existingWindowsByParticipation.flatMap((item) => item.windows),
+    ]);
     const newRoleIsPI = newRole === ProjectPersonnelRole.PRINCIPAL_INVESTIGATOR;
-    const wouldBePI = newRoleIsPI ? piCount + 1 : piCount;
-    const wouldBeTotal = totalRoles + 1;
 
-    if (wouldBePI > 3) {
-      throw new BadRequestException(
-        `?????곕츥????釉??????????${wouldBePI}???ル봿??? ??癲ル슢????? ????????????곕츥????釉?????????轅붽틓????????????????뀀땽 ?????밸븶?ⓥ뮧?????怨쀫뎐????轅붽틓????彛? 3???ル봿?????????낆젵.`,
+    boundaryPoints.forEach((point) => {
+      const candidateIsActive = candidateWindows.some((window) =>
+        this.isActiveOn(point, window.startDate, window.endDate),
       );
-    }
+      if (!candidateIsActive) {
+        return;
+      }
 
-    if (wouldBeTotal > 5) {
-      throw new BadRequestException(
-        `????????? ${wouldBeTotal}???ル봿??? ??癲ル슢????? ????????轅붽틓????????????????뀀땽 ???????????곕츥????釉??????????곷쾻??????곕츥????轅붽틓???????????곕츥????? ?轅붽틓????彛? 5???ル봿?????????낆젵.`,
+      const activeParticipations = existingWindowsByParticipation.filter((item) =>
+        item.windows.some((window) => this.isActiveOn(point, window.startDate, window.endDate)),
       );
-    }
+      const piCount = activeParticipations.filter(
+        (item) => item.participation.role === ProjectPersonnelRole.PRINCIPAL_INVESTIGATOR,
+      ).length;
+      const wouldBePI = newRoleIsPI ? piCount + 1 : piCount;
+      const wouldBeTotal = activeParticipations.length + 1;
+
+      if (wouldBePI > 3) {
+        throw new BadRequestException(
+          `Principal investigator assignments cannot exceed 3 active projects, got: ${wouldBePI}`,
+        );
+      }
+
+      if (wouldBeTotal > 5) {
+        throw new BadRequestException(
+          `Active project assignments cannot exceed 5, got: ${wouldBeTotal}`,
+        );
+      }
+    });
+  }
+
+  private async validateTotalParticipationWindows(
+    personnelId: string,
+    candidateWindows: Array<{ startDate: Date; endDate: Date | null; participationRate: number }>,
+    excludeProjectPersonnelId?: string,
+  ): Promise<void> {
+    const existingParticipations = await this.projectPersonnelRepository.find({
+      where: { personnel: { id: personnelId } },
+      relations: ['segments'],
+    });
+
+    const comparableParticipations = excludeProjectPersonnelId
+      ? existingParticipations.filter((pp) => pp.id !== excludeProjectPersonnelId)
+      : existingParticipations;
+
+    const existingWindows = comparableParticipations.flatMap((participation) =>
+      this.getParticipationWindows(participation),
+    );
+    const boundaryPoints = this.getWindowBoundaryPoints([...candidateWindows, ...existingWindows]);
+
+    boundaryPoints.forEach((point) => {
+      const candidateRate = this.getActiveWindowRateAt(candidateWindows, point);
+      if (candidateRate === 0) {
+        return;
+      }
+      const existingRate = this.getActiveWindowRateAt(existingWindows, point);
+      this.participationCalculationService.validateTotalParticipationRate(candidateRate + existingRate);
+    });
   }
 
   async createProjectPersonnel(
@@ -275,9 +370,6 @@ export class ProjectPersonnelService {
       throw new NotFoundException(`Personnel with ID ${createProjectPersonnelDto.personnelId} not found`);
     }
 
-    const roleToAssign = createProjectPersonnelDto.role || ProjectPersonnelRole.PARTICIPATING_RESEARCHER;
-    await this.validateRoleLimits(createProjectPersonnelDto.personnelId, roleToAssign);
-
     const existing = await this.projectPersonnelRepository.findOne({
       where: {
         project: { id: createProjectPersonnelDto.projectId },
@@ -294,6 +386,7 @@ export class ProjectPersonnelService {
       createProjectPersonnelDto.participationRate
     );
 
+    const roleToAssign = createProjectPersonnelDto.role || ProjectPersonnelRole.PARTICIPATING_RESEARCHER;
     let projectPersonnel = this.projectPersonnelRepository.create({
       ...createProjectPersonnelDto,
       project,
@@ -304,8 +397,6 @@ export class ProjectPersonnelService {
       personnelCostOverride: createProjectPersonnelDto.personnelCostOverride ?? null,
     });
 
-    projectPersonnel = await this.projectPersonnelRepository.save(projectPersonnel);
-
     const segments = this.buildSegments(projectPersonnel, createProjectPersonnelDto, {
       startDate: createProjectPersonnelDto.startDate,
       endDate: createProjectPersonnelDto.endDate,
@@ -313,6 +404,17 @@ export class ProjectPersonnelService {
       participationMonths: createProjectPersonnelDto.participationMonths,
       personnelCostOverride: createProjectPersonnelDto.personnelCostOverride,
     });
+    this.validateSegments(segments);
+    const candidateWindows = segments.map((segment) => ({
+      startDate: new Date(segment.startDate),
+      endDate: new Date(segment.endDate),
+      participationRate: Number(segment.participationRate),
+    }));
+
+    await this.validateRoleLimits(createProjectPersonnelDto.personnelId, roleToAssign, candidateWindows);
+    await this.validateTotalParticipationWindows(createProjectPersonnelDto.personnelId, candidateWindows);
+
+    projectPersonnel = await this.projectPersonnelRepository.save(projectPersonnel);
     const savedSegments = await this.replaceSegments(projectPersonnel, segments);
 
     projectPersonnel.segments = savedSegments;
@@ -402,6 +504,15 @@ export class ProjectPersonnelService {
     viewer?: { role?: UserRole; canManageActualSalary?: boolean } | null,
   ): Promise<ProjectPersonnel> {
     const projectPersonnel = await this.findOne(id, viewer && this.canManageActualSalary(viewer) ? viewer : { role: UserRole.ADMIN, canManageActualSalary: true });
+    const previous = {
+      participationRate: Number(projectPersonnel.participationRate),
+      role: projectPersonnel.role,
+      startDate: projectPersonnel.startDate,
+      endDate: projectPersonnel.endDate,
+      participationMonths: projectPersonnel.participationMonths,
+      actualAnnualSalaryOverride: projectPersonnel.actualAnnualSalaryOverride,
+      personnelCostOverride: projectPersonnel.personnelCostOverride,
+    };
 
     if (
       updateData.actualAnnualSalaryOverride !== undefined &&
@@ -412,21 +523,26 @@ export class ProjectPersonnelService {
     
     if (updateData.participationRate !== undefined) {
       this.participationCalculationService.validateParticipationRate(updateData.participationRate);
-      // 媛쒕퀎 李몄뿬??媛??먯껜留?寃利앺븳?? 珥앺빀 100% 珥덇낵??紐⑤땲?곕쭅 寃쎄퀬濡?泥섎━?쒕떎.
     }
 
-    if (updateData.role !== undefined) {
-      await this.validateRoleLimits(
-        projectPersonnel.personnel.id,
-        updateData.role,
-        projectPersonnel.id,
-      );
+    const changesLegacyParticipationFields =
+      updateData.startDate !== undefined ||
+      updateData.endDate !== undefined ||
+      updateData.participationRate !== undefined ||
+      updateData.participationMonths !== undefined ||
+      updateData.personnelCostOverride !== undefined;
+
+    if (updateData.segments === undefined && (projectPersonnel.segments?.length || 0) > 1 && changesLegacyParticipationFields) {
+      throw new BadRequestException('Multi-segment assignments must be updated with replacement segments');
     }
 
+    const roleToAssign = updateData.role ?? projectPersonnel.role;
     Object.assign(projectPersonnel, updateData);
 
+    let nextSegments: ProjectPersonnelSegment[] | null = null;
+
     if (updateData.segments !== undefined) {
-      const nextSegments = this.buildSegments(projectPersonnel, updateData, {
+      nextSegments = this.buildSegments(projectPersonnel, updateData, {
         startDate: updateData.startDate || projectPersonnel.startDate,
         endDate: updateData.endDate || projectPersonnel.endDate || undefined,
         participationRate:
@@ -442,9 +558,6 @@ export class ProjectPersonnelService {
             ? updateData.personnelCostOverride
             : projectPersonnel.personnelCostOverride,
       });
-      const savedSegments = await this.replaceSegments(projectPersonnel, nextSegments);
-      projectPersonnel.segments = savedSegments;
-      this.applyLegacyFieldsFromSegments(projectPersonnel, savedSegments);
     } else if ((projectPersonnel.segments?.length || 0) <= 1 && (
       updateData.startDate !== undefined ||
       updateData.endDate !== undefined ||
@@ -452,7 +565,7 @@ export class ProjectPersonnelService {
       updateData.participationMonths !== undefined ||
       updateData.personnelCostOverride !== undefined
     )) {
-      const nextSegments = this.buildSegmentsFromLegacy(projectPersonnel, {
+      nextSegments = this.buildSegmentsFromLegacy(projectPersonnel, {
         startDate: updateData.startDate || projectPersonnel.startDate,
         endDate: updateData.endDate || projectPersonnel.endDate || undefined,
         participationRate:
@@ -468,6 +581,38 @@ export class ProjectPersonnelService {
             ? updateData.personnelCostOverride
             : projectPersonnel.personnelCostOverride,
       });
+    } else if (updateData.role !== undefined) {
+      nextSegments = this.getParticipationWindows(projectPersonnel).map((window, index) =>
+        this.projectPersonnelSegmentRepository.create({
+          projectPersonnel,
+          startDate: window.startDate,
+          endDate: window.endDate ?? new Date('9999-12-31T00:00:00.000Z'),
+          participationRate: window.participationRate,
+          personnelCostOverride: projectPersonnel.personnelCostOverride,
+          sortOrder: index,
+          notes: null,
+        }),
+      );
+    }
+
+    if (nextSegments) {
+      this.validateSegments(nextSegments);
+      const candidateWindows = nextSegments.map((segment) => ({
+        startDate: new Date(segment.startDate),
+        endDate: new Date(segment.endDate),
+        participationRate: Number(segment.participationRate),
+      }));
+      await this.validateRoleLimits(
+        projectPersonnel.personnel.id,
+        roleToAssign,
+        candidateWindows,
+        projectPersonnel.id,
+      );
+      await this.validateTotalParticipationWindows(
+        projectPersonnel.personnel.id,
+        candidateWindows,
+        projectPersonnel.id,
+      );
       const savedSegments = await this.replaceSegments(projectPersonnel, nextSegments);
       projectPersonnel.segments = savedSegments;
       this.applyLegacyFieldsFromSegments(projectPersonnel, savedSegments);
@@ -482,6 +627,16 @@ export class ProjectPersonnelService {
       id,
       'UPDATE',
       {
+        previous,
+        next: {
+          participationRate: Number(updated.participationRate),
+          role: updated.role,
+          startDate: updated.startDate,
+          endDate: updated.endDate,
+          participationMonths: updated.participationMonths,
+          actualAnnualSalaryOverride: updated.actualAnnualSalaryOverride,
+          personnelCostOverride: updated.personnelCostOverride,
+        },
         changes: updateData,
         newVersion: projectPersonnel.version,
       },
