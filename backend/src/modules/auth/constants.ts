@@ -1,3 +1,5 @@
+import { getJwtSecret } from '../../config/runtime.config';
+
 export const jwtConstants = {
-  secret: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+  secret: getJwtSecret(),
 };

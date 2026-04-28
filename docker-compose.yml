@@ -4,15 +4,15 @@ services:
     container_name: rate-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: rate_db
-      POSTGRES_USER: rate_user
-      POSTGRES_PASSWORD: rate_password
+      POSTGRES_DB: ${RATE_DB_NAME:-rate_db}
+      POSTGRES_USER: ${RATE_DB_USERNAME:-rate_user}
+      POSTGRES_PASSWORD: ${RATE_DB_PASSWORD:?Set RATE_DB_PASSWORD in .env}
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rate_user -d rate_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${RATE_DB_USERNAME:-rate_user} -d ${RATE_DB_NAME:-rate_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,10 +26,14 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: rate_db
-      DB_USERNAME: rate_user
-      DB_PASSWORD: rate_password
-      JWT_SECRET: rate-jwt-secret-key-2024
+      DB_NAME: ${RATE_DB_NAME:-rate_db}
+      DB_USERNAME: ${RATE_DB_USERNAME:-rate_user}
+      DB_PASSWORD: ${RATE_DB_PASSWORD:?Set RATE_DB_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3033}
+      COMPANY_EMAIL_DOMAIN: ${COMPANY_EMAIL_DOMAIN:-gtp.or.kr}
+      ALLOW_SELF_REGISTRATION: ${ALLOW_SELF_REGISTRATION:-false}
+      DB_SYNCHRONIZE: "false"
       PORT: 3000
     ports:
       - "3030:3000"

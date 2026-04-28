@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { User, UserRole } from './user.entity';
 import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
+import { isSelfRegistrationAllowed } from '../../config/runtime.config';
 
 @Injectable()
 export class UsersService {
@@ -37,6 +38,10 @@ export class UsersService {
   }
 
   async registerWithCompanyEmail(registerUserDto: RegisterUserDto): Promise<User> {
+    if (!isSelfRegistrationAllowed()) {
+      throw new BadRequestException('Self-registration is disabled. Contact an administrator.');
+    }
+
     const existingUser = await this.usersRepository.findOne({
       where: { username: registerUserDto.username },
     });

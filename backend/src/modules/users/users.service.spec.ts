@@ -31,6 +31,21 @@ describe('UsersService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    delete process.env.NODE_ENV;
+    delete process.env.ALLOW_SELF_REGISTRATION;
+  });
+
+  it('blocks self-registration in production by default', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.ALLOW_SELF_REGISTRATION = 'false';
+
+    await expect(
+      service.registerWithCompanyEmail({
+        username: 'new.user@gtp.or.kr',
+        password: 'password123',
+      }),
+    ).rejects.toThrow('Self-registration is disabled');
+    expect(usersRepository.findOne).not.toHaveBeenCalled();
   });
 
   it('returns canManageActualSalary from list payloads', async () => {

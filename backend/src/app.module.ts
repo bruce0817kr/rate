@@ -13,6 +13,7 @@ import { UploadModule } from './modules/upload/upload.module';
 import { TeamsModule } from './modules/teams/teams.module';
 import { SalaryBandsModule } from './modules/salary-bands/salary-bands.module';
 import { HealthController } from './health.controller';
+import { buildTypeOrmOptions } from './config/runtime.config';
 
 @Module({
   imports: [
@@ -21,17 +22,7 @@ import { HealthController } from './health.controller';
       envFilePath: ['.env.development', '.env'],
     }),
     TypeOrmModule.forRootAsync({
-      useFactory: () => ({
-        type: 'postgres',
-        host: process.env.DB_HOST || 'localhost',
-        port: parseInt(process.env.DB_PORT || '5432', 10),
-        username: process.env.DB_USERNAME || 'postgres',
-        password: process.env.DB_PASSWORD || 'postgres',
-        database: process.env.DB_NAME || 'personnel_saas',
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true, // Only use in development!
-        logging: process.env.NODE_ENV !== 'production',
-      }),
+      useFactory: () => buildTypeOrmOptions(),
     }),
     AuthModule,
     UsersModule,
